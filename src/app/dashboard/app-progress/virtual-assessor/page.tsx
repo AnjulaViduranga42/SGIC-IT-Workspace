@@ -33,6 +33,7 @@ import {
 } from 'recharts';
 import AppDashboardSelector from '@/components/app-dashboard-selector';
 import ChartDrilldown, { DrilldownColumn, DrilldownRow } from '@/components/chart-drilldown';
+import { useCloseFilterMenus } from '@/lib/use-close-filter-menus';
 
 interface VirtualAssessorJob {
   id: number;
@@ -113,7 +114,7 @@ function MonthChartFilter({ months, selected, onChange }: MonthChartFilterProps)
   };
 
   return (
-    <details className="relative">
+    <details data-filter-menu className="relative">
       <summary className="flex cursor-pointer list-none items-center gap-2 rounded-lg border border-white/10 bg-white/5 px-3 py-2 text-xs font-medium text-slate-300 transition hover:bg-white/10">
         <CalendarDays size={15} className="text-indigo-400" />
         {activeMonths.length === months.length ? 'All months' : `${activeMonths.length} months`}
@@ -144,6 +145,7 @@ function MonthChartFilter({ months, selected, onChange }: MonthChartFilterProps)
 }
 
 export default function VirtualAssessorPage() {
+  useCloseFilterMenus();
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [jobs, setJobs] = useState<VirtualAssessorJob[]>([]);
   const [loading, setLoading] = useState(true);

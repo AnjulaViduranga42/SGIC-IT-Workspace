@@ -7,6 +7,7 @@ import type { LucideIcon } from 'lucide-react';
 import { Bar, BarChart, CartesianGrid, Cell, LabelList, Legend, Pie, PieChart, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts';
 import AppDashboardSelector from '@/components/app-dashboard-selector';
 import ChartDrilldown, { DrilldownColumn, DrilldownRow } from '@/components/chart-drilldown';
+import { useCloseFilterMenus } from '@/lib/use-close-filter-menus';
 
 interface StockEntry { id: number; entryDate: string; itemCode: string; itemName: string; inQty: number; outQty: number; balanceQty: number; warehouse: string; itemGroup: string | null; voucherNo: string | null; }
 interface LoginUser { id: number; userName: string; email: string; lastLoginAt: string | null; ipAddress: string | null; }
@@ -23,6 +24,7 @@ function TickFilter({ label, icon: Icon, values, selected, display = (value: str
 }
 
 export default function SalvageManagementPage() {
+  useCloseFilterMenus();
   const inputRef = useRef<HTMLInputElement>(null);
   const [stock, setStock] = useState<StockEntry[]>([]); const [users, setUsers] = useState<LoginUser[]>([]);
   const [loading, setLoading] = useState(true); const [uploading, setUploading] = useState(false); const [isFullscreen, setIsFullscreen] = useState(false);

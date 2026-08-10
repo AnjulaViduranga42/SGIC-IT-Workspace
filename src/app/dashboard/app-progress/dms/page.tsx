@@ -6,6 +6,7 @@ import type { LucideIcon } from 'lucide-react';
 import { Bar, BarChart, CartesianGrid, Cell, LabelList, Pie, PieChart, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts';
 import AppDashboardSelector from '@/components/app-dashboard-selector';
 import ChartDrilldown, { DrilldownColumn, DrilldownRow } from '@/components/chart-drilldown';
+import { useCloseFilterMenus } from '@/lib/use-close-filter-menus';
 
 interface DmsUser { id: number; externalUserId: string | null; userName: string | null; email: string | null; status: string; }
 interface MonthSummary { month: string; _sum: { documentCount: number | null }; _count: { _all: number }; }
@@ -23,7 +24,7 @@ function MonthFilter({ months, selected, onChange }: { months: string[]; selecte
     const next = active.includes(month) ? active.filter((item) => item !== month) : [...active, month];
     if (next.length) onChange(next);
   };
-  return <details className="relative">
+  return <details data-filter-menu className="relative">
     <summary className="dashboard-control flex cursor-pointer list-none items-center gap-2 rounded-xl px-3 py-2 text-sm font-medium"><CalendarDays size={16} />{active.length === months.length ? 'All months' : `${active.length} months`}</summary>
     <div className="chart-filter-menu absolute right-0 z-30 mt-2 w-52 rounded-xl border border-white/10 p-3 shadow-2xl">
       <div className="mb-2 flex justify-between text-xs font-semibold"><span>Select months</span><button type="button" className="text-indigo-500" onClick={() => onChange([])}>All</button></div>
@@ -33,6 +34,7 @@ function MonthFilter({ months, selected, onChange }: { months: string[]; selecte
 }
 
 export default function DmsPage() {
+  useCloseFilterMenus();
   const inputRef = useRef<HTMLInputElement>(null);
   const [data, setData] = useState<DmsData>({ users: [], indexEntries: [], indexByMonth: [], indexByUser: [] });
   const [loading, setLoading] = useState(true);
