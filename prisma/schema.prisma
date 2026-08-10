@@ -1,0 +1,89 @@
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+enum Role {
+  ADMIN
+}
+
+model User {
+  id        Int      @id @default(autoincrement())
+  email     String   @unique
+  password  String
+  name      String
+  role      Role     @default(ADMIN)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+model UserGroup {
+  id        Int      @id @default(autoincrement())
+  name      String   @unique
+  emails    String   // Comma-separated list of email addresses in the group
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  tasks     Task[]
+}
+
+model TaskType {
+  id        Int      @id @default(autoincrement())
+  name      String   @unique
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  tasks     Task[]
+}
+
+model Task {
+  id                 Int        @id @default(autoincrement())
+  title              String
+  description        String
+  status             String     @default("PENDING") // PENDING, COMPLETED
+  dueDate            DateTime
+  taskTypeId         Int
+  taskType           TaskType   @relation(fields: [taskTypeId], references: [id], onDelete: Cascade)
+  reminderDaysBefore Int        @default(1) // Number of days before due date to remind (e.g. 1, 2)
+  reminderSentAt     DateTime?  // Timestamp when the reminder email was successfully sent
+  assigneeEmails     String?    // Comma-separated list of individual email addresses to remind
+  userGroupId        Int?
+  userGroup          UserGroup? @relation(fields: [userGroupId], references: [id], onDelete: SetNull)
+  createdAt          DateTime   @default(now())
+  updatedAt          DateTime   @updatedAt
+}
+
+model KPI {
+  id          Int        @id @default(autoincrement())
+  name        String     @unique
+  description String?
+  target      Float      // Overall or annual target value
+  unit        String     // e.g. "%", "hours", "count", "LKR"
+  frequency   String     @default("MONTHLY") // MONTHLY, QUARTERLY, YEARLY
+  createdAt   DateTime   @default(now())
+  updatedAt   DateTime   @updatedAt
+  values      KPIValue[]
+}
+
+model KPIValue {
+  id          Int      @id @default(autoincrement())
+  kpiId       Int
+  kpi         KPI      @relation(fields: [kpiId], references: [id], onDelete: Cascade)
+  period      String   // e.g. "2026-07" for July 2026 or "2026-Q1" for Q1 2026
+  targetValue Float
+  actualValue Float
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@unique([kpiId, period])
+}
+
+model Person {
+  id        Int      @id @default(autoincrement())
+  name      String
+  email     String   @unique
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}

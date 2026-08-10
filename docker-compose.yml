@@ -1,0 +1,46 @@
+version: '3.8'
+
+services:
+  db:
+    image: postgres:16-alpine
+    container_name: sgic-it-db
+    restart: always
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgrespassword123
+      POSTGRES_DB: sgic_workspace
+    ports:
+      - "5432:5432"
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres -d sgic_workspace"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  web:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: sgic-it-web
+    restart: always
+    ports:
+      - "3050:3050"
+    environment:
+      - DATABASE_URL=postgresql://postgres:postgrespassword123@db:5432/sgic_workspace?schema=public
+      - JWT_SECRET=super-secret-key-at-least-32-chars-long-sgic-workspace
+      - CRON_SECRET=sgic-cron-secret-token-key-2026
+      # SMTP configuration variables for Task Reminders (User-configurable in env)
+      - SMTP_HOST=
+      - SMTP_PORT=587
+      - SMTP_USER=
+      - SMTP_PASS=
+      - SMTP_FROM=no-reply@sgic.lk
+      - NODE_ENV=production
+    depends_on:
+      db:
+        condition: service_healthy
+
+volumes:
+  pgdata:
