@@ -58,6 +58,7 @@ interface ImportResult {
 }
 
 const PAGE_SIZE = 20;
+const MONTH_FILTER_STORAGE_KEY = 'sgic-virtual-assessor-month-filters';
 const chartTooltipStyle = {
   backgroundColor: 'var(--chart-tooltip-bg)',
   border: '1px solid var(--chart-tooltip-border)',
@@ -82,6 +83,16 @@ function isCompleted(status: string) {
 
 function isCancelled(status: string) {
   return status.toLowerCase().includes('cancel');
+}
+
+function savedMonthList(value: unknown) {
+  return Array.isArray(value) ? value.filter((month): month is string => typeof month === 'string') : [];
+}
+
+function validSavedMonths(selected: string[], available: string[]) {
+  if (!selected.length) return selected;
+  const next = selected.filter((month) => available.includes(month));
+  return next.length === selected.length && next.every((month, index) => month === selected[index]) ? selected : next;
 }
 
 interface MonthChartFilterProps {
@@ -149,6 +160,7 @@ export default function VirtualAssessorPage() {
   const [agentChartMonths, setAgentChartMonths] = useState<string[]>([]);
   const [page, setPage] = useState(1);
   const [isFullscreen, setIsFullscreen] = useState(false);
+  const [monthFiltersRestored, setMonthFiltersRestored] = useState(false);
 
   const fetchJobs = useCallback(async () => {
     try {
@@ -173,6 +185,38 @@ export default function VirtualAssessorPage() {
     return () => document.removeEventListener('fullscreenchange', handleFullscreenChange);
   }, []);
 
+  useEffect(() => {
+    try {
+      const saved = localStorage.getItem(MONTH_FILTER_STORAGE_KEY);
+      if (saved) {
+        const filters = JSON.parse(saved) as Record<string, unknown>;
+        if (filters.version === 1) {
+          setTableMonths(savedMonthList(filters.table));
+          setTileMonths(savedMonthList(filters.tiles));
+          setMonthlyChartMonths(savedMonthList(filters.monthlyChart));
+          setStatusChartMonths(savedMonthList(filters.statusChart));
+          setAgentChartMonths(savedMonthList(filters.agentChart));
+        }
+      }
+    } catch {
+      localStorage.removeItem(MONTH_FILTER_STORAGE_KEY);
+    } finally {
+      setMonthFiltersRestored(true);
+    }
+  }, []);
+
+  useEffect(() => {
+    if (!monthFiltersRestored) return;
+    localStorage.setItem(MONTH_FILTER_STORAGE_KEY, JSON.stringify({
+      version: 1,
+      table: tableMonths,
+      tiles: tileMonths,
+      monthlyChart: monthlyChartMonths,
+      statusChart: statusChartMonths,
+      agentChart: agentChartMonths,
+    }));
+  }, [monthFiltersRestored, tableMonths, tileMonths, monthlyChartMonths, statusChartMonths, agentChartMonths]);
+
   const agents = useMemo(
     () => Array.from(new Set(jobs.map((job) => job.agentId))).sort((a, b) => a.localeCompare(b)),
     [jobs]
@@ -182,6 +226,15 @@ export default function VirtualAssessorPage() {
     () => Array.from(new Set(jobs.map((job) => monthKey(job.jobDate)))).sort().reverse(),
     [jobs]
   );
+
+  useEffect(() => {
+    if (!monthFiltersRestored || !months.length) return;
+    setTableMonths((current) => validSavedMonths(current, months));
+    setTileMonths((current) => validSavedMonths(current, months));
+    setMonthlyChartMonths((current) => validSavedMonths(current, months));
+    setStatusChartMonths((current) => validSavedMonths(current, months));
+    setAgentChartMonths((current) => validSavedMonths(current, months));
+  }, [monthFiltersRestored, months]);
 
   const filteredJobs = useMemo(() => {
     const query = search.trim().toLowerCase();
