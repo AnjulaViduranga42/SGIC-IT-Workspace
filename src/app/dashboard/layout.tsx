@@ -104,11 +104,11 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
 
       {/* Sidebar Navigation */}
       <aside className={`
-        fixed inset-y-0 left-0 w-64 glass-panel-heavy rounded-none border-y-0 border-l-0 p-6 flex flex-col justify-between z-50
+        fixed inset-y-0 left-0 h-dvh w-64 glass-panel-heavy rounded-none border-y-0 border-l-0 p-6 flex flex-col overflow-hidden z-50
         transition-transform duration-300 transform md:translate-x-0 md:static md:w-64 shrink-0
         ${mobileMenuOpen ? 'translate-x-0' : '-translate-x-full'}
       `}>
-        <div className="space-y-8">
+        <div className="min-h-0 flex-1 space-y-8 overflow-y-auto overscroll-contain pr-1">
           {/* Logo */}
           <div className="hidden md:flex flex-col items-center">
             <Link href="/dashboard" className="flex justify-center hover:opacity-85 transition-opacity">
@@ -200,7 +200,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
         </div>
 
         {/* Profile Card & Logout */}
-        <div className="space-y-4 pt-6 border-t border-white/5">
+        <div className="sidebar-account-footer mt-4 shrink-0 space-y-4 border-t border-white/5 pt-5">
           {currentUser && (
             <div className="flex items-center justify-between gap-2 px-1">
               <div className="flex items-center gap-2 overflow-hidden">

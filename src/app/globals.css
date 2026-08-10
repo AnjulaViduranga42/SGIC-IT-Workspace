@@ -366,6 +366,11 @@ p, span, label, td, th {
   color: var(--foreground);
 }
 
+.sidebar-account-footer {
+  padding-bottom: env(safe-area-inset-bottom, 0px);
+  background: var(--sidebar-bg);
+}
+
 .dashboard-control {
   background: var(--control-bg) !important;
   color: var(--text-body) !important;
