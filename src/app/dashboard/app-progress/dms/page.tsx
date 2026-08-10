@@ -1,7 +1,7 @@
 'use client';
 
 import { ChangeEvent, useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { CalendarDays, CheckCircle2, Database, Loader2, Search, Upload, UserRoundCheck, UsersRound } from 'lucide-react';
+import { CalendarDays, CheckCircle2, Database, Loader2, Maximize2, Minimize2, Search, Upload, UserRoundCheck, UsersRound } from 'lucide-react';
 import type { LucideIcon } from 'lucide-react';
 import { Bar, BarChart, CartesianGrid, Cell, LabelList, Pie, PieChart, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts';
 import AppDashboardSelector from '@/components/app-dashboard-selector';
@@ -31,6 +31,7 @@ function MonthFilter({ months, selected, onChange }: { months: string[]; selecte
 }
 
 export default function DmsPage() {
+  const dashboardRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
   const [data, setData] = useState<DmsData>({ users: [], indexByMonth: [], indexByUser: [] });
   const [loading, setLoading] = useState(true);
@@ -39,6 +40,7 @@ export default function DmsPage() {
   const [search, setSearch] = useState('');
   const [status, setStatus] = useState('ALL');
   const [message, setMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
+  const [isFullscreen, setIsFullscreen] = useState(false);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -59,6 +61,11 @@ export default function DmsPage() {
     return () => window.clearTimeout(timer);
   }, []);
   useEffect(() => { localStorage.setItem(STORAGE_KEY, JSON.stringify(selectedMonths)); }, [selectedMonths]);
+  useEffect(() => {
+    const updateFullscreen = () => setIsFullscreen(document.fullscreenElement === dashboardRef.current);
+    document.addEventListener('fullscreenchange', updateFullscreen);
+    return () => document.removeEventListener('fullscreenchange', updateFullscreen);
+  }, []);
 
   const months = useMemo(() => data.indexByMonth.map((item) => item.month).sort((a, b) => monthOrder.indexOf(a) - monthOrder.indexOf(b)), [data.indexByMonth]);
   const activeMonths = selectedMonths.length ? selectedMonths.filter((month) => months.includes(month)) : months;
@@ -98,10 +105,19 @@ export default function DmsPage() {
     finally { setUploading(false); }
   };
 
-  return <div className="min-w-0 space-y-7">
+  const toggleFullscreen = async () => {
+    try {
+      if (document.fullscreenElement) await document.exitFullscreen();
+      else await dashboardRef.current?.requestFullscreen();
+    } catch {
+      setMessage({ type: 'error', text: 'Fullscreen mode is not supported by this browser.' });
+    }
+  };
+
+  return <div ref={dashboardRef} className={`min-w-0 space-y-7 transition-[padding,background-color] duration-300 ease-out ${isFullscreen ? 'dashboard-presentation h-screen overflow-y-auto p-4 sm:p-6 lg:p-8' : ''}`}>
     <header className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
       <div><p className="text-xs font-semibold uppercase tracking-[0.2em] text-indigo-400">App Progress Dashboard</p><h1 className="mt-2 text-3xl font-bold text-white">DMS</h1><p className="mt-2 max-w-2xl text-sm text-slate-400">Monitor DMS users and monthly indexing activity from the two source reports.</p></div>
-      <div className="flex flex-wrap gap-3"><AppDashboardSelector /><input ref={inputRef} hidden type="file" multiple accept=".xlsx" onChange={upload} /><button type="button" disabled={uploading} onClick={() => inputRef.current?.click()} className="dashboard-primary-button flex items-center justify-center gap-2 rounded-xl bg-indigo-600 px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-indigo-500 disabled:opacity-60">{uploading ? <Loader2 size={17} className="animate-spin" /> : <Upload size={17} />}{uploading ? 'Importing…' : 'Upload DMS Reports'}</button></div>
+      <div className="flex flex-wrap gap-3"><AppDashboardSelector /><button type="button" onClick={toggleFullscreen} className="flex items-center gap-2 rounded-xl border border-white/10 bg-white/5 px-4 py-2.5 text-sm font-medium text-slate-200 transition-all duration-200 hover:bg-white/10 active:scale-[0.98]">{isFullscreen ? <Minimize2 size={17} /> : <Maximize2 size={17} />}{isFullscreen ? 'Exit Fullscreen' : 'Present'}</button><input ref={inputRef} hidden type="file" multiple accept=".xlsx" onChange={upload} /><button type="button" disabled={uploading} onClick={() => inputRef.current?.click()} className="dashboard-primary-button flex items-center justify-center gap-2 rounded-xl bg-indigo-600 px-4 py-2.5 text-sm font-semibold text-white transition-all duration-200 hover:bg-indigo-500 active:scale-[0.98] disabled:opacity-60">{uploading ? <Loader2 size={17} className="animate-spin" /> : <Upload size={17} />}{uploading ? 'Importing…' : 'Upload DMS Reports'}</button></div>
     </header>
     {message && <div className={`rounded-xl border px-4 py-3 text-sm ${message.type === 'success' ? 'border-emerald-500/30 bg-emerald-500/10 text-emerald-600' : 'border-red-500/30 bg-red-500/10 text-red-500'}`}>{message.text}</div>}
     <section>
