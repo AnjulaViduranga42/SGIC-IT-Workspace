@@ -3,6 +3,7 @@
 import { ChangeEvent, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   BarChart3,
+  CalendarDays,
   CheckCircle2,
   ChevronLeft,
   ChevronRight,
@@ -79,6 +80,53 @@ function isCancelled(status: string) {
   return status.toLowerCase().includes('cancel');
 }
 
+interface MonthChartFilterProps {
+  months: string[];
+  selected: string[];
+  onChange: (months: string[]) => void;
+}
+
+function MonthChartFilter({ months, selected, onChange }: MonthChartFilterProps) {
+  const activeMonths = selected.length ? selected : months;
+
+  const toggleMonth = (month: string) => {
+    const next = activeMonths.includes(month)
+      ? activeMonths.filter((item) => item !== month)
+      : [...activeMonths, month];
+    if (next.length) onChange(next);
+  };
+
+  return (
+    <details className="relative">
+      <summary className="flex cursor-pointer list-none items-center gap-2 rounded-lg border border-white/10 bg-white/5 px-3 py-2 text-xs font-medium text-slate-300 transition hover:bg-white/10">
+        <CalendarDays size={15} className="text-indigo-400" />
+        {activeMonths.length === months.length ? 'All months' : `${activeMonths.length} months`}
+      </summary>
+      <div className="absolute right-0 z-30 mt-2 w-52 rounded-xl border border-white/10 bg-slate-950 p-3 shadow-2xl">
+        <div className="mb-2 flex items-center justify-between">
+          <span className="text-xs font-semibold text-white">Select months</span>
+          <button type="button" onClick={() => onChange([])} className="text-[11px] text-indigo-400 hover:text-indigo-300">
+            All
+          </button>
+        </div>
+        <div className="max-h-56 space-y-1 overflow-y-auto">
+          {months.map((month) => (
+            <label key={month} className="flex cursor-pointer items-center gap-2 rounded-lg px-2 py-1.5 text-xs text-slate-300 hover:bg-white/5">
+              <input
+                type="checkbox"
+                checked={activeMonths.includes(month)}
+                onChange={() => toggleMonth(month)}
+                className="h-3.5 w-3.5 accent-indigo-500"
+              />
+              {monthLabel(month)}
+            </label>
+          ))}
+        </div>
+      </div>
+    </details>
+  );
+}
+
 export default function VirtualAssessorPage() {
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [jobs, setJobs] = useState<VirtualAssessorJob[]>([]);
@@ -90,6 +138,9 @@ export default function VirtualAssessorPage() {
   const [statusFilter, setStatusFilter] = useState('ALL');
   const [agentFilter, setAgentFilter] = useState('ALL');
   const [monthFilter, setMonthFilter] = useState('ALL');
+  const [monthlyChartMonths, setMonthlyChartMonths] = useState<string[]>([]);
+  const [statusChartMonths, setStatusChartMonths] = useState<string[]>([]);
+  const [agentChartMonths, setAgentChartMonths] = useState<string[]>([]);
   const [page, setPage] = useState(1);
 
   const fetchJobs = useCallback(async () => {
@@ -150,7 +201,8 @@ export default function VirtualAssessorPage() {
 
   const monthlyData = useMemo(() => {
     const grouped = new Map<string, { month: string; total: number; completed: number; cancelled: number }>();
-    jobs.forEach((job) => {
+    const selected = new Set(monthlyChartMonths.length ? monthlyChartMonths : months);
+    jobs.filter((job) => selected.has(monthKey(job.jobDate))).forEach((job) => {
       const key = monthKey(job.jobDate);
       const item = grouped.get(key) ?? { month: key, total: 0, completed: 0, cancelled: 0 };
       item.total += 1;
@@ -162,11 +214,12 @@ export default function VirtualAssessorPage() {
       ...item,
       month: monthLabel(item.month),
     }));
-  }, [jobs]);
+  }, [jobs, monthlyChartMonths, months]);
 
   const agentData = useMemo(() => {
     const grouped = new Map<string, { agent: string; completed: number; cancelled: number }>();
-    jobs.forEach((job) => {
+    const selected = new Set(agentChartMonths.length ? agentChartMonths : months);
+    jobs.filter((job) => selected.has(monthKey(job.jobDate))).forEach((job) => {
       const label = job.agentName || job.agentId;
       const item = grouped.get(job.agentId) ?? { agent: label, completed: 0, cancelled: 0 };
       if (isCompleted(job.status)) item.completed += 1;
@@ -176,11 +229,16 @@ export default function VirtualAssessorPage() {
     return Array.from(grouped.values()).sort(
       (a, b) => (b.completed + b.cancelled) - (a.completed + a.cancelled)
     );
-  }, [jobs]);
+  }, [jobs, agentChartMonths, months]);
+
+  const statusChartJobs = useMemo(() => {
+    const selected = new Set(statusChartMonths.length ? statusChartMonths : months);
+    return jobs.filter((job) => selected.has(monthKey(job.jobDate)));
+  }, [jobs, statusChartMonths, months]);
 
   const pieData = [
-    { name: 'Completed', value: completedCount, color: '#6366f1' },
-    { name: 'Cancelled', value: cancelledCount, color: '#f97316' },
+    { name: 'Completed', value: statusChartJobs.filter((job) => isCompleted(job.status)).length, color: '#6366f1' },
+    { name: 'Cancelled', value: statusChartJobs.filter((job) => isCancelled(job.status)).length, color: '#f97316' },
   ].filter((item) => item.value > 0);
 
   const pageCount = Math.max(1, Math.ceil(filteredJobs.length / PAGE_SIZE));
@@ -316,10 +374,15 @@ export default function VirtualAssessorPage() {
         <div className="flex min-h-64 items-center justify-center"><Loader2 className="animate-spin text-indigo-400" size={32} /></div>
       ) : jobs.length ? (
         <>
-          <section className="grid gap-5 xl:grid-cols-3">
-            <article className="glass-panel rounded-2xl border border-white/10 p-5 xl:col-span-2">
-              <h2 className="font-semibold text-white">Monthly job performance</h2>
-              <p className="mt-1 text-xs text-slate-400">Total, completed, and cancelled jobs by month</p>
+            <section className="grid gap-5 xl:grid-cols-3">
+              <article className="glass-panel rounded-2xl border border-white/10 p-5 xl:col-span-2">
+              <div className="flex items-start justify-between gap-3">
+                <div>
+                  <h2 className="font-semibold text-white">Monthly job performance</h2>
+                  <p className="mt-1 text-xs text-slate-400">Total, completed, and cancelled jobs by month</p>
+                </div>
+                <MonthChartFilter months={months} selected={monthlyChartMonths} onChange={setMonthlyChartMonths} />
+              </div>
               <div className="mt-5 h-80">
                 <ResponsiveContainer width="100%" height="100%">
                   <BarChart data={monthlyData} margin={{ top: 8, right: 8, left: -20, bottom: 5 }}>
@@ -337,8 +400,13 @@ export default function VirtualAssessorPage() {
             </article>
 
             <article className="glass-panel rounded-2xl border border-white/10 p-5">
-              <h2 className="font-semibold text-white">Job status split</h2>
-              <p className="mt-1 text-xs text-slate-400">Completed versus cancelled records</p>
+              <div className="flex items-start justify-between gap-3">
+                <div>
+                  <h2 className="font-semibold text-white">Job status split</h2>
+                  <p className="mt-1 text-xs text-slate-400">Completed versus cancelled records</p>
+                </div>
+                <MonthChartFilter months={months} selected={statusChartMonths} onChange={setStatusChartMonths} />
+              </div>
               <div className="mt-5 h-80">
                 <ResponsiveContainer width="100%" height="100%">
                   <PieChart>
@@ -354,8 +422,13 @@ export default function VirtualAssessorPage() {
           </section>
 
           <section className="glass-panel rounded-2xl border border-white/10 p-5">
-            <h2 className="font-semibold text-white">Completed and cancelled by agent</h2>
-            <p className="mt-1 text-xs text-slate-400">Agent-level job outcome comparison</p>
+            <div className="flex items-start justify-between gap-3">
+              <div>
+                <h2 className="font-semibold text-white">Completed and cancelled by agent</h2>
+                <p className="mt-1 text-xs text-slate-400">Agent-level job outcome comparison</p>
+              </div>
+              <MonthChartFilter months={months} selected={agentChartMonths} onChange={setAgentChartMonths} />
+            </div>
             <div className="mt-5 h-96">
               <ResponsiveContainer width="100%" height="100%">
                 <BarChart data={agentData} layout="vertical" margin={{ top: 5, right: 20, left: 35, bottom: 5 }}>
