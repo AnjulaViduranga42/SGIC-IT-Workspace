@@ -26,6 +26,10 @@ export async function POST(request: Request) {
       );
     }
 
+    if (!user.isActive) {
+      return NextResponse.json({ error: 'This account is inactive. Contact the Super Admin.' }, { status: 403 });
+    }
+
     // Validate password
     const passwordMatch = await bcrypt.compare(password, user.password);
     if (!passwordMatch) {
@@ -41,6 +45,7 @@ export async function POST(request: Request) {
       email: user.email,
       name: user.name,
       role: user.role,
+      isSuperAdmin: user.isSuperAdmin,
     });
 
     // Create response
@@ -51,6 +56,8 @@ export async function POST(request: Request) {
         email: user.email,
         name: user.name,
         role: user.role,
+        isSuperAdmin: user.isSuperAdmin,
+        isActive: user.isActive,
       },
     });
 

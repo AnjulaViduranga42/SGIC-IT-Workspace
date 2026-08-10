@@ -1,59 +1,10 @@
-import { NextResponse } from 'next/server';
 import { cookies } from 'next/headers';
-import { db } from '@/lib/db';
+import { NextResponse } from 'next/server';
 import { decrypt } from '@/lib/auth';
+import { db } from '@/lib/db';
 
-async function getSessionUser() {
-  const cookieStore = await cookies();
-  const session = cookieStore.get('session')?.value;
-  if (!session) return null;
-  return await decrypt(session);
-}
-
-export async function GET() {
-  try {
-    const sessionUser = await getSessionUser();
-    if (!sessionUser) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-    }
-    const people = await db.person.findMany({
-      orderBy: { name: 'asc' },
-    });
-    return NextResponse.json(people);
-  } catch (error) {
-    console.error('Fetch people error:', error);
-    return NextResponse.json({ error: 'Internal Server Error' }, { status: 500 });
-  }
-}
-
-export async function POST(request: Request) {
-  try {
-    const sessionUser = await getSessionUser();
-    if (!sessionUser || sessionUser.role !== 'ADMIN') {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 403 });
-    }
-    const { name, email } = await request.json();
-    if (!name || !email || name.trim().length === 0 || email.trim().length === 0) {
-      return NextResponse.json({ error: 'Name and email are required' }, { status: 400 });
-    }
-    
-    // Check if email already exists
-    const existing = await db.person.findUnique({
-      where: { email: email.toLowerCase().trim() }
-    });
-    if (existing) {
-      return NextResponse.json({ error: 'A staff person with this email already exists' }, { status: 400 });
-    }
-
-    const newPerson = await db.person.create({
-      data: {
-        name: name.trim(),
-        email: email.toLowerCase().trim(),
-      },
-    });
-    return NextResponse.json(newPerson, { status: 201 });
-  } catch (error) {
-    console.error('Create person error:', error);
-    return NextResponse.json({ error: 'Internal Server Error' }, { status: 500 });
-  }
-}
+async function authorized() { const token = (await cookies()).get('session')?.value; const payload = token ? await decrypt(token) : null; if (!payload) return false; return Boolean(await db.user.findFirst({ where: { id: Number(payload.id), isActive: true } })); }
+export async function GET() { if (!(await authorized())) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 }); return NextResponse.json(await db.person.findMany({ orderBy: { name: 'asc' } })); }
+export async function POST(request: Request) { try { if (!(await authorized())) return NextResponse.json({ error: 'Unauthorized' }, { status: 403 }); const { name, email } = await request.json(); if (!name?.trim() || !email?.trim()) return NextResponse.json({ error: 'Name and email are required.' }, { status: 400 }); return NextResponse.json(await db.person.create({ data: { name: name.trim(), email: email.toLowerCase().trim() } }), { status: 201 }); } catch { return NextResponse.json({ error: 'Unable to add staff. Check that the email is unique.' }, { status: 400 }); } }
+export async function PUT(request: Request) { try { if (!(await authorized())) return NextResponse.json({ error: 'Unauthorized' }, { status: 403 }); const { id, name, email } = await request.json(); if (!name?.trim() || !email?.trim()) return NextResponse.json({ error: 'Name and email are required.' }, { status: 400 }); return NextResponse.json(await db.person.update({ where: { id: Number(id) }, data: { name: name.trim(), email: email.toLowerCase().trim() } })); } catch { return NextResponse.json({ error: 'Unable to update staff. Check that the email is unique.' }, { status: 400 }); } }
+export async function DELETE(request: Request) { try { if (!(await authorized())) return NextResponse.json({ error: 'Unauthorized' }, { status: 403 }); const id = Number(new URL(request.url).searchParams.get('id')); await db.person.delete({ where: { id } }); return NextResponse.json({ deleted: 1 }); } catch { return NextResponse.json({ error: 'Unable to delete staff member.' }, { status: 400 }); } }

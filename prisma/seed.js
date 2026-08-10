@@ -20,10 +20,16 @@ async function main() {
         password: hashedPassword,
         name: 'Workspace Admin',
         role: 'ADMIN',
+        isSuperAdmin: true,
+        isActive: true,
       }
     });
     console.log('Created default admin:', admin.email);
   } else {
+    await prisma.user.update({
+      where: { email: adminEmail },
+      data: { isSuperAdmin: true, isActive: true }
+    });
     console.log('Default admin already exists');
   }
 
