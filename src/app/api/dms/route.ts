@@ -15,12 +15,13 @@ async function isAdmin() {
 export async function GET() {
   try {
     if (!(await isAdmin())) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-    const [users, indexByMonth, indexByUser] = await Promise.all([
+    const [users, indexEntries, indexByMonth, indexByUser] = await Promise.all([
       db.dmsUser.findMany({ orderBy: [{ userName: 'asc' }, { id: 'asc' }] }),
+      db.dmsIndexEntry.findMany({ orderBy: [{ month: 'asc' }, { userId: 'asc' }, { id: 'asc' }] }),
       db.dmsIndexEntry.groupBy({ by: ['month'], _sum: { documentCount: true }, _count: { _all: true } }),
       db.dmsIndexEntry.groupBy({ by: ['userId'], _sum: { documentCount: true }, _count: { _all: true } }),
     ]);
-    return NextResponse.json({ users, indexByMonth, indexByUser });
+    return NextResponse.json({ users, indexEntries, indexByMonth, indexByUser });
   } catch (error) {
     console.error('DMS fetch error:', error);
     return NextResponse.json({ error: 'Unable to load DMS data.' }, { status: 500 });

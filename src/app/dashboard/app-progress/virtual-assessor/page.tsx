@@ -32,6 +32,7 @@ import {
   YAxis,
 } from 'recharts';
 import AppDashboardSelector from '@/components/app-dashboard-selector';
+import ChartDrilldown, { DrilldownColumn, DrilldownRow } from '@/components/chart-drilldown';
 
 interface VirtualAssessorJob {
   id: number;
@@ -160,6 +161,7 @@ export default function VirtualAssessorPage() {
   const [page, setPage] = useState(1);
   const [isFullscreen, setIsFullscreen] = useState(false);
   const [monthFiltersRestored, setMonthFiltersRestored] = useState(false);
+  const [drilldown, setDrilldown] = useState<{ title: string; subtitle: string; columns: DrilldownColumn[]; rows: DrilldownRow[] } | null>(null);
 
   const fetchJobs = useCallback(async () => {
     try {
@@ -281,18 +283,15 @@ export default function VirtualAssessorPage() {
       if (isCancelled(job.status)) item.cancelled += 1;
       grouped.set(key, item);
     });
-    return Array.from(grouped.values()).sort((a, b) => a.month.localeCompare(b.month)).map((item) => ({
-      ...item,
-      month: monthLabel(item.month),
-    }));
+    return Array.from(grouped.values()).sort((a, b) => a.month.localeCompare(b.month)).map((item) => ({ ...item, monthKey: item.month, month: monthLabel(item.month) }));
   }, [jobs, monthlyChartMonths, months]);
 
   const agentData = useMemo(() => {
-    const grouped = new Map<string, { agent: string; completed: number; cancelled: number }>();
+    const grouped = new Map<string, { agentId: string; agent: string; completed: number; cancelled: number }>();
     const selected = new Set(agentChartMonths.length ? agentChartMonths : months);
     jobs.filter((job) => selected.has(monthKey(job.jobDate))).forEach((job) => {
       const label = job.agentName || job.agentId;
-      const item = grouped.get(job.agentId) ?? { agent: label, completed: 0, cancelled: 0 };
+      const item = grouped.get(job.agentId) ?? { agentId: job.agentId, agent: label, completed: 0, cancelled: 0 };
       if (isCompleted(job.status)) item.completed += 1;
       if (isCancelled(job.status)) item.cancelled += 1;
       grouped.set(job.agentId, item);
@@ -385,6 +384,13 @@ export default function VirtualAssessorPage() {
       setMessage({ type: 'error', text: 'Fullscreen mode is not supported by this browser.' });
     }
   };
+
+  const jobColumns: DrilldownColumn[] = [{ key: 'date', label: 'Job Date' }, { key: 'reference', label: 'Ref. No' }, { key: 'customer', label: 'Customer' }, { key: 'agent', label: 'Agent' }, { key: 'status', label: 'Status' }, { key: 'reason', label: 'Cancel Reason' }];
+  const jobRows = (records: VirtualAssessorJob[]): DrilldownRow[] => records.map((job) => ({ date: new Date(job.jobDate).toLocaleString(), reference: job.referenceNo, customer: job.customerName, agent: `${job.agentName || job.agentId} (${job.agentId})`, status: job.status, reason: job.cancelReason }));
+  const openJobs = (title: string, records: VirtualAssessorJob[]) => setDrilldown({ title, subtitle: `${records.length.toLocaleString()} underlying jobs`, columns: jobColumns, rows: jobRows(records) });
+  const openMonthlyJobs = (month: string, kind: string) => openJobs(`${monthLabel(month)} · ${kind}`, jobs.filter((job) => monthKey(job.jobDate) === month && (kind === 'Completed' ? isCompleted(job.status) : kind === 'Cancelled' ? isCancelled(job.status) : true)));
+  const openStatusJobs = (kind: string) => openJobs(`${kind} jobs`, statusChartJobs.filter((job) => kind === 'Completed' ? isCompleted(job.status) : isCancelled(job.status)));
+  const openAgentJobs = (agentId: string, kind: string) => { const selected = new Set(agentChartMonths.length ? agentChartMonths : months); openJobs(`${kind} jobs · ${agentId}`, jobs.filter((job) => job.agentId === agentId && selected.has(monthKey(job.jobDate)) && (kind === 'Completed' ? isCompleted(job.status) : isCancelled(job.status)))); };
 
   const summaryCards = [
     { label: 'Total Jobs', value: tileJobs.length, icon: Database, color: 'text-sky-400' },
@@ -489,13 +495,13 @@ export default function VirtualAssessorPage() {
                     <YAxis allowDecimals={false} tick={{ fill: 'var(--chart-text)', fontSize: 11 }} />
                     <Tooltip contentStyle={chartTooltipStyle} labelStyle={{ color: 'var(--text-title)' }} />
                     <Legend wrapperStyle={{ fontSize: 12 }} />
-                    <Bar dataKey="total" name="Total" fill="#38bdf8" radius={[4, 4, 0, 0]}>
+                    <Bar className="cursor-pointer" dataKey="total" name="Total" fill="#38bdf8" radius={[4, 4, 0, 0]} onClick={(entry) => openMonthlyJobs(String((entry as { payload?: { monthKey?: string } }).payload?.monthKey || ''), 'Total')}>
                       <LabelList dataKey="total" position="top" fill="var(--chart-value)" fontSize={10} />
                     </Bar>
-                    <Bar dataKey="completed" name="Completed" fill="#6366f1" radius={[4, 4, 0, 0]}>
+                    <Bar className="cursor-pointer" dataKey="completed" name="Completed" fill="#6366f1" radius={[4, 4, 0, 0]} onClick={(entry) => openMonthlyJobs(String((entry as { payload?: { monthKey?: string } }).payload?.monthKey || ''), 'Completed')}>
                       <LabelList dataKey="completed" position="top" fill="var(--chart-value)" fontSize={10} />
                     </Bar>
-                    <Bar dataKey="cancelled" name="Cancelled" fill="#f97316" radius={[4, 4, 0, 0]}>
+                    <Bar className="cursor-pointer" dataKey="cancelled" name="Cancelled" fill="#f97316" radius={[4, 4, 0, 0]} onClick={(entry) => openMonthlyJobs(String((entry as { payload?: { monthKey?: string } }).payload?.monthKey || ''), 'Cancelled')}>
                       <LabelList dataKey="cancelled" position="top" fill="var(--chart-value)" fontSize={10} />
                     </Bar>
                   </BarChart>
@@ -514,7 +520,7 @@ export default function VirtualAssessorPage() {
               <div className="mt-5 h-80">
                 <ResponsiveContainer width="100%" height="100%">
                   <PieChart>
-                    <Pie data={pieData} dataKey="value" nameKey="name" innerRadius={62} outerRadius={96} paddingAngle={3}>
+                    <Pie className="cursor-pointer" data={pieData} dataKey="value" nameKey="name" innerRadius={62} outerRadius={96} paddingAngle={3} onClick={(entry) => openStatusJobs(String((entry as { name?: string }).name || ''))}>
                       {pieData.map((item) => <Cell key={item.name} fill={item.color} />)}
                       <LabelList dataKey="value" position="outside" fill="var(--chart-value)" fontSize={12} />
                     </Pie>
@@ -542,10 +548,10 @@ export default function VirtualAssessorPage() {
                   <YAxis type="category" dataKey="agent" width={90} tick={{ fill: 'var(--chart-text)', fontSize: 11 }} />
                   <Tooltip contentStyle={chartTooltipStyle} labelStyle={{ color: 'var(--text-title)' }} />
                   <Legend wrapperStyle={{ fontSize: 12 }} />
-                  <Bar dataKey="completed" name="Completed" fill="#6366f1" radius={[0, 4, 4, 0]}>
+                  <Bar className="cursor-pointer" dataKey="completed" name="Completed" fill="#6366f1" radius={[0, 4, 4, 0]} onClick={(entry) => openAgentJobs(String((entry as { payload?: { agentId?: string } }).payload?.agentId || ''), 'Completed')}>
                     <LabelList dataKey="completed" position="right" fill="var(--chart-value)" fontSize={11} />
                   </Bar>
-                  <Bar dataKey="cancelled" name="Cancelled" fill="#f97316" radius={[0, 4, 4, 0]}>
+                  <Bar className="cursor-pointer" dataKey="cancelled" name="Cancelled" fill="#f97316" radius={[0, 4, 4, 0]} onClick={(entry) => openAgentJobs(String((entry as { payload?: { agentId?: string } }).payload?.agentId || ''), 'Cancelled')}>
                     <LabelList dataKey="cancelled" position="right" fill="var(--chart-value)" fontSize={11} />
                   </Bar>
                 </BarChart>
@@ -677,6 +683,7 @@ export default function VirtualAssessorPage() {
           <p className="mt-2 max-w-lg text-sm text-slate-400">Supported formats are the supplied HTML-based `.xls` report and standard `.xlsx` workbooks. Duplicate jobs are skipped automatically.</p>
         </section>
       )}
+      {drilldown && <ChartDrilldown {...drilldown} onClose={() => setDrilldown(null)} />}
     </div>
   );
 }
