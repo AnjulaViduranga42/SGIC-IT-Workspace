@@ -23,6 +23,7 @@ import {
   CartesianGrid,
   Cell,
   Legend,
+  LabelList,
   Pie,
   PieChart,
   ResponsiveContainer,
@@ -369,7 +370,7 @@ export default function VirtualAssessorPage() {
             type="button"
             onClick={() => fileInputRef.current?.click()}
             disabled={uploading}
-            className="flex items-center gap-2 rounded-xl bg-indigo-600 px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-indigo-500 disabled:opacity-60"
+            className="dashboard-primary-button flex items-center gap-2 rounded-xl bg-indigo-600 px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-indigo-500 disabled:opacity-60"
           >
             {uploading ? <Loader2 size={17} className="animate-spin" /> : <Upload size={17} />}
             {uploading ? 'Importing…' : 'Upload Excel Report'}
@@ -378,7 +379,7 @@ export default function VirtualAssessorPage() {
             type="button"
             onClick={deleteAllRecords}
             disabled={!jobs.length || deletingId === -1}
-            className="flex items-center gap-2 rounded-xl border border-red-500/25 bg-red-500/10 px-4 py-2.5 text-sm font-medium text-red-200 transition hover:bg-red-500/20 disabled:opacity-40"
+            className="dashboard-danger-button flex items-center gap-2 rounded-xl border border-red-500/25 bg-red-500/10 px-4 py-2.5 text-sm font-medium text-red-200 transition hover:bg-red-500/20 disabled:opacity-40"
           >
             {deletingId === -1 ? <Loader2 size={17} className="animate-spin" /> : <Trash2 size={17} />}
             Delete All
@@ -434,9 +435,15 @@ export default function VirtualAssessorPage() {
                     <YAxis allowDecimals={false} tick={{ fill: 'var(--chart-text)', fontSize: 11 }} />
                     <Tooltip contentStyle={chartTooltipStyle} labelStyle={{ color: 'var(--text-title)' }} />
                     <Legend wrapperStyle={{ fontSize: 12 }} />
-                    <Bar dataKey="total" name="Total" fill="#38bdf8" radius={[4, 4, 0, 0]} />
-                    <Bar dataKey="completed" name="Completed" fill="#6366f1" radius={[4, 4, 0, 0]} />
-                    <Bar dataKey="cancelled" name="Cancelled" fill="#f97316" radius={[4, 4, 0, 0]} />
+                    <Bar dataKey="total" name="Total" fill="#38bdf8" radius={[4, 4, 0, 0]}>
+                      <LabelList dataKey="total" position="top" fill="var(--chart-value)" fontSize={10} />
+                    </Bar>
+                    <Bar dataKey="completed" name="Completed" fill="#6366f1" radius={[4, 4, 0, 0]}>
+                      <LabelList dataKey="completed" position="top" fill="var(--chart-value)" fontSize={10} />
+                    </Bar>
+                    <Bar dataKey="cancelled" name="Cancelled" fill="#f97316" radius={[4, 4, 0, 0]}>
+                      <LabelList dataKey="cancelled" position="top" fill="var(--chart-value)" fontSize={10} />
+                    </Bar>
                   </BarChart>
                 </ResponsiveContainer>
               </div>
@@ -455,6 +462,7 @@ export default function VirtualAssessorPage() {
                   <PieChart>
                     <Pie data={pieData} dataKey="value" nameKey="name" innerRadius={62} outerRadius={96} paddingAngle={3}>
                       {pieData.map((item) => <Cell key={item.name} fill={item.color} />)}
+                      <LabelList dataKey="value" position="outside" fill="var(--chart-value)" fontSize={12} />
                     </Pie>
                     <Tooltip contentStyle={chartTooltipStyle} labelStyle={{ color: 'var(--text-title)' }} />
                     <Legend wrapperStyle={{ fontSize: 12 }} />
@@ -480,8 +488,12 @@ export default function VirtualAssessorPage() {
                   <YAxis type="category" dataKey="agent" width={90} tick={{ fill: 'var(--chart-text)', fontSize: 11 }} />
                   <Tooltip contentStyle={chartTooltipStyle} labelStyle={{ color: 'var(--text-title)' }} />
                   <Legend wrapperStyle={{ fontSize: 12 }} />
-                  <Bar dataKey="completed" name="Completed" fill="#6366f1" radius={[0, 4, 4, 0]} />
-                  <Bar dataKey="cancelled" name="Cancelled" fill="#f97316" radius={[0, 4, 4, 0]} />
+                  <Bar dataKey="completed" name="Completed" fill="#6366f1" radius={[0, 4, 4, 0]}>
+                    <LabelList dataKey="completed" position="right" fill="var(--chart-value)" fontSize={11} />
+                  </Bar>
+                  <Bar dataKey="cancelled" name="Cancelled" fill="#f97316" radius={[0, 4, 4, 0]}>
+                    <LabelList dataKey="cancelled" position="right" fill="var(--chart-value)" fontSize={11} />
+                  </Bar>
                 </BarChart>
               </ResponsiveContainer>
             </div>
@@ -497,17 +509,17 @@ export default function VirtualAssessorPage() {
                 <div className="flex flex-wrap gap-2">
                   <label className="relative min-w-56 flex-1">
                     <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-500" />
-                    <input value={search} onChange={(event) => setSearch(event.target.value)} placeholder="Search records…" className="w-full rounded-lg border border-white/10 bg-slate-950/40 py-2 pl-9 pr-3 text-sm text-white outline-none focus:border-indigo-500/50" />
+                    <input value={search} onChange={(event) => setSearch(event.target.value)} placeholder="Search records…" className="dashboard-control w-full rounded-lg border border-white/10 py-2 pl-9 pr-3 text-sm outline-none focus:border-indigo-500/50" />
                   </label>
-                  <select value={monthFilter} onChange={(event) => setMonthFilter(event.target.value)} className="rounded-lg border border-white/10 bg-slate-950/80 px-3 py-2 text-sm text-slate-200 outline-none">
+                  <select value={monthFilter} onChange={(event) => setMonthFilter(event.target.value)} className="dashboard-control rounded-lg border border-white/10 px-3 py-2 text-sm outline-none">
                     <option value="ALL">All months</option>
                     {months.map((month) => <option key={month} value={month}>{monthLabel(month)}</option>)}
                   </select>
-                  <select value={agentFilter} onChange={(event) => setAgentFilter(event.target.value)} className="rounded-lg border border-white/10 bg-slate-950/80 px-3 py-2 text-sm text-slate-200 outline-none">
+                  <select value={agentFilter} onChange={(event) => setAgentFilter(event.target.value)} className="dashboard-control rounded-lg border border-white/10 px-3 py-2 text-sm outline-none">
                     <option value="ALL">All agents</option>
                     {agents.map((agent) => <option key={agent} value={agent}>{agent}</option>)}
                   </select>
-                  <select value={statusFilter} onChange={(event) => setStatusFilter(event.target.value)} className="rounded-lg border border-white/10 bg-slate-950/80 px-3 py-2 text-sm text-slate-200 outline-none">
+                  <select value={statusFilter} onChange={(event) => setStatusFilter(event.target.value)} className="dashboard-control rounded-lg border border-white/10 px-3 py-2 text-sm outline-none">
                     <option value="ALL">All statuses</option>
                     <option value="COMPLETED">Completed</option>
                     <option value="CANCELLED">Cancelled</option>
