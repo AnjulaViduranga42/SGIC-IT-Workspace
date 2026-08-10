@@ -142,7 +142,7 @@ export default function VirtualAssessorPage() {
   const [search, setSearch] = useState('');
   const [statusFilter, setStatusFilter] = useState('ALL');
   const [agentFilter, setAgentFilter] = useState('ALL');
-  const [monthFilter, setMonthFilter] = useState('ALL');
+  const [tableMonths, setTableMonths] = useState<string[]>([]);
   const [tileMonths, setTileMonths] = useState<string[]>([]);
   const [monthlyChartMonths, setMonthlyChartMonths] = useState<string[]>([]);
   const [statusChartMonths, setStatusChartMonths] = useState<string[]>([]);
@@ -185,6 +185,7 @@ export default function VirtualAssessorPage() {
 
   const filteredJobs = useMemo(() => {
     const query = search.trim().toLowerCase();
+    const selectedTableMonths = new Set(tableMonths.length ? tableMonths : months);
     return jobs.filter((job) => {
       const matchesSearch = !query || [
         job.referenceNo,
@@ -199,14 +200,14 @@ export default function VirtualAssessorPage() {
         || (statusFilter === 'COMPLETED' && isCompleted(job.status))
         || (statusFilter === 'CANCELLED' && isCancelled(job.status));
       const matchesAgent = agentFilter === 'ALL' || job.agentId === agentFilter;
-      const matchesMonth = monthFilter === 'ALL' || monthKey(job.jobDate) === monthFilter;
+      const matchesMonth = selectedTableMonths.has(monthKey(job.jobDate));
       return matchesSearch && matchesStatus && matchesAgent && matchesMonth;
     });
-  }, [jobs, search, statusFilter, agentFilter, monthFilter]);
+  }, [jobs, search, statusFilter, agentFilter, tableMonths, months]);
 
   useEffect(() => {
     setPage(1);
-  }, [search, statusFilter, agentFilter, monthFilter]);
+  }, [search, statusFilter, agentFilter, tableMonths]);
 
   const tileJobs = useMemo(() => {
     const selected = new Set(tileMonths.length ? tileMonths : months);
@@ -499,22 +500,19 @@ export default function VirtualAssessorPage() {
             </div>
           </section>
 
-          <section className="glass-panel overflow-hidden rounded-2xl border border-white/10">
+          <section className="glass-panel rounded-2xl border border-white/10">
             <div className="border-b border-white/10 p-5">
               <div className="flex flex-col gap-4 xl:flex-row xl:items-center xl:justify-between">
                 <div>
                   <h2 className="font-semibold text-white">Full job data</h2>
                   <p className="mt-1 text-xs text-slate-400">Showing {filteredJobs.length.toLocaleString()} of {jobs.length.toLocaleString()} records</p>
                 </div>
-                <div className="flex flex-wrap gap-2">
-                  <label className="relative min-w-56 flex-1">
+                  <div className="grid w-full gap-2 sm:grid-cols-2 xl:flex xl:w-auto xl:flex-wrap">
+                  <label className="relative sm:col-span-2 xl:min-w-56 xl:flex-1">
                     <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-500" />
                     <input value={search} onChange={(event) => setSearch(event.target.value)} placeholder="Search records…" className="dashboard-control w-full rounded-lg border border-white/10 py-2 pl-9 pr-3 text-sm outline-none focus:border-indigo-500/50" />
                   </label>
-                  <select value={monthFilter} onChange={(event) => setMonthFilter(event.target.value)} className="dashboard-control rounded-lg border border-white/10 px-3 py-2 text-sm outline-none">
-                    <option value="ALL">All months</option>
-                    {months.map((month) => <option key={month} value={month}>{monthLabel(month)}</option>)}
-                  </select>
+                  <MonthChartFilter months={months} selected={tableMonths} onChange={setTableMonths} />
                   <select value={agentFilter} onChange={(event) => setAgentFilter(event.target.value)} className="dashboard-control rounded-lg border border-white/10 px-3 py-2 text-sm outline-none">
                     <option value="ALL">All agents</option>
                     {agents.map((agent) => <option key={agent} value={agent}>{agent}</option>)}
@@ -528,7 +526,7 @@ export default function VirtualAssessorPage() {
               </div>
             </div>
 
-            <div className="overflow-x-auto">
+            <div className="hidden overflow-x-auto md:block">
               <table className="min-w-full text-left text-xs">
                 <thead className="bg-white/[0.03] text-slate-400">
                   <tr>
@@ -547,7 +545,7 @@ export default function VirtualAssessorPage() {
                       <td className="max-w-56 truncate px-4 py-3" title={job.product || ''}>{job.product || '—'}</td>
                       <td className="whitespace-nowrap px-4 py-3">{job.agentName || job.agentId}<span className="ml-1 text-slate-500">({job.agentId})</span></td>
                       <td className="px-4 py-3"><span className={`rounded-full px-2.5 py-1 font-medium ${isCancelled(job.status) ? 'bg-orange-500/15 text-orange-300' : 'bg-emerald-500/15 text-emerald-300'}`}>{job.status}</span></td>
-                      <td className="max-w-52 truncate px-4 py-3" title={job.cancelReason || ''}>{job.cancelReason || '—'}</td>
+                      <td className="min-w-72 max-w-md whitespace-normal break-words px-4 py-3 leading-relaxed">{job.cancelReason || '—'}</td>
                       <td className="max-w-40 truncate px-4 py-3 text-slate-500" title={job.sourceFile || ''}>{job.sourceFile || '—'}</td>
                       <td className="px-4 py-3">
                         <button type="button" onClick={() => deleteRecord(job.id)} disabled={deletingId === job.id} aria-label={`Delete ${job.referenceNo}`} className="rounded-lg p-2 text-slate-500 transition hover:bg-red-500/10 hover:text-red-300 disabled:opacity-50">
@@ -558,6 +556,55 @@ export default function VirtualAssessorPage() {
                   ))}
                 </tbody>
               </table>
+              {!visibleJobs.length ? <div className="p-10 text-center text-sm text-slate-500">No records match the selected filters.</div> : null}
+            </div>
+
+            <div className="divide-y divide-white/5 md:hidden">
+              {visibleJobs.map((job) => (
+                <article key={job.id} className="space-y-4 p-4">
+                  <div className="flex items-start justify-between gap-3">
+                    <div className="min-w-0">
+                      <p className="break-all text-sm font-semibold text-white">{job.referenceNo}</p>
+                      <p className="mt-1 text-xs text-slate-500">{new Date(job.jobDate).toLocaleString()}</p>
+                    </div>
+                    <span className={`shrink-0 rounded-full px-2.5 py-1 text-xs font-medium ${isCancelled(job.status) ? 'bg-orange-500/15 text-orange-300' : 'bg-emerald-500/15 text-emerald-300'}`}>{job.status}</span>
+                  </div>
+
+                  <dl className="grid grid-cols-2 gap-x-4 gap-y-3 text-xs">
+                    <div>
+                      <dt className="text-slate-500">Customer</dt>
+                      <dd className="mt-1 break-words text-slate-300">{job.customerName || '—'}</dd>
+                    </div>
+                    <div>
+                      <dt className="text-slate-500">Mobile</dt>
+                      <dd className="mt-1 text-slate-300">{job.customerMobile || '—'}</dd>
+                    </div>
+                    <div className="col-span-2">
+                      <dt className="text-slate-500">Product</dt>
+                      <dd className="mt-1 break-words text-slate-300">{job.product || '—'}</dd>
+                    </div>
+                    <div className="col-span-2">
+                      <dt className="text-slate-500">Agent</dt>
+                      <dd className="mt-1 text-slate-300">{job.agentName || job.agentId} ({job.agentId})</dd>
+                    </div>
+                  </dl>
+
+                  {isCancelled(job.status) ? (
+                    <div className="rounded-xl border border-orange-500/20 bg-orange-500/10 p-3">
+                      <p className="text-xs font-semibold text-orange-300">Cancellation reason</p>
+                      <p className="mt-1 whitespace-pre-wrap break-words text-sm leading-relaxed text-slate-200">{job.cancelReason || 'No cancellation reason provided.'}</p>
+                    </div>
+                  ) : null}
+
+                  <div className="flex items-center justify-between gap-3 border-t border-white/5 pt-3">
+                    <p className="min-w-0 truncate text-[11px] text-slate-500" title={job.sourceFile || ''}>{job.sourceFile || 'No source file'}</p>
+                    <button type="button" onClick={() => deleteRecord(job.id)} disabled={deletingId === job.id} className="flex shrink-0 items-center gap-1.5 rounded-lg border border-red-500/20 px-3 py-2 text-xs text-red-300 disabled:opacity-50">
+                      {deletingId === job.id ? <Loader2 size={14} className="animate-spin" /> : <Trash2 size={14} />}
+                      Delete
+                    </button>
+                  </div>
+                </article>
+              ))}
               {!visibleJobs.length ? <div className="p-10 text-center text-sm text-slate-500">No records match the selected filters.</div> : null}
             </div>
 
