@@ -382,6 +382,15 @@ p, span, label, td, th {
   background: var(--sidebar-bg);
 }
 
+.sidebar-navigation-scroll {
+  scrollbar-width: none;
+  -ms-overflow-style: none;
+}
+
+.sidebar-navigation-scroll::-webkit-scrollbar {
+  display: none;
+}
+
 .dashboard-control {
   background: var(--control-bg) !important;
   color: var(--text-body) !important;

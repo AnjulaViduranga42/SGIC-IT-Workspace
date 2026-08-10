@@ -108,7 +108,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
         transition-transform duration-300 transform md:translate-x-0 md:static md:w-64 shrink-0
         ${mobileMenuOpen ? 'translate-x-0' : '-translate-x-full'}
       `}>
-        <div className="min-h-0 flex-1 space-y-5">
+        <div className="sidebar-navigation-scroll min-h-0 flex-1 space-y-5 overflow-y-auto pr-1">
           {/* Logo */}
           <div className="hidden md:flex flex-col items-center">
             <Link href="/dashboard" className="flex justify-center hover:opacity-85 transition-opacity">
