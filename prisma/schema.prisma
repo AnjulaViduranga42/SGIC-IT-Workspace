@@ -110,3 +110,28 @@ model VirtualAssessorJob {
   @@index([status])
   @@index([agentId])
 }
+
+model DmsUser {
+  id             Int      @id @default(autoincrement())
+  externalUserId String?
+  userName       String?
+  email          String?
+  status         String
+  sourceFile     String?
+  uploadedAt     DateTime @default(now())
+
+  @@index([externalUserId])
+  @@index([status])
+}
+
+model DmsIndexEntry {
+  id            Int      @id @default(autoincrement())
+  userId        String
+  documentCount Int
+  month         String
+  sourceFile    String?
+  uploadedAt    DateTime @default(now())
+
+  @@index([month])
+  @@index([userId])
+}
