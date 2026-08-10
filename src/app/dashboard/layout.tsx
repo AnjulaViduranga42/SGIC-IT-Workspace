@@ -12,7 +12,12 @@ import {
   LogOut, 
   Menu, 
   X,
-  User as UserIcon
+  User as UserIcon,
+  ChevronDown,
+  PanelsTopLeft,
+  ClipboardCheck,
+  FolderKanban,
+  Wrench
 } from 'lucide-react';
 import ThemeToggle from '@/components/theme-toggle';
 
@@ -27,6 +32,8 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
   const router = useRouter();
   const [currentUser, setCurrentUser] = useState<User | null>(null);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+  const isAppProgressRoute = pathname.startsWith('/dashboard/app-progress');
+  const [appProgressOpen, setAppProgressOpen] = useState(isAppProgressRoute);
 
   useEffect(() => {
     // Fetch logged in user profile
@@ -63,6 +70,12 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
     { name: 'KPIs', href: '/dashboard/kpis', icon: BarChart3 },
     { name: 'Admins & Staff', href: '/dashboard/users', icon: Users },
     { name: 'Reports', href: '/dashboard/reports', icon: FileSpreadsheet },
+  ];
+
+  const appProgressLinks = [
+    { name: 'Virtual Assessor', href: '/dashboard/app-progress/virtual-assessor', icon: ClipboardCheck },
+    { name: 'DMS', href: '/dashboard/app-progress/dms', icon: FolderKanban },
+    { name: 'Salvage Management', href: '/dashboard/app-progress/salvage-management', icon: Wrench },
   ];
 
   return (
@@ -133,6 +146,56 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
                 </Link>
               );
             })}
+
+            <div className="pt-3">
+              <button
+                type="button"
+                onClick={() => setAppProgressOpen((open) => !open)}
+                aria-expanded={appProgressOpen}
+                aria-controls="app-progress-navigation"
+                className={`
+                  w-full flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-medium transition-all duration-200 cursor-pointer
+                  ${isAppProgressRoute
+                    ? 'bg-gradient-to-r from-indigo-500/20 to-purple-500/10 border border-indigo-500/30 text-white font-semibold'
+                    : 'text-slate-400 hover:text-white hover:bg-white/5 border border-transparent'
+                  }
+                `}
+              >
+                <PanelsTopLeft size={18} className={isAppProgressRoute ? 'text-indigo-400' : 'text-slate-400'} />
+                <span className="flex-1 text-left">App Progress Dashboard</span>
+                <ChevronDown
+                  size={16}
+                  className={`transition-transform duration-200 ${appProgressOpen ? 'rotate-180' : ''}`}
+                />
+              </button>
+
+              {appProgressOpen && (
+                <div id="app-progress-navigation" className="mt-1 ml-5 pl-3 border-l border-white/10 space-y-1">
+                  {appProgressLinks.map((link) => {
+                    const Icon = link.icon;
+                    const isActive = pathname === link.href;
+
+                    return (
+                      <Link
+                        key={link.href}
+                        href={link.href}
+                        onClick={() => setMobileMenuOpen(false)}
+                        className={`
+                          flex items-center gap-3 px-3 py-2.5 rounded-lg text-xs font-medium transition-all duration-200
+                          ${isActive
+                            ? 'bg-indigo-500/15 text-white border border-indigo-500/25'
+                            : 'text-slate-400 hover:text-white hover:bg-white/5 border border-transparent'
+                          }
+                        `}
+                      >
+                        <Icon size={16} className={isActive ? 'text-indigo-400' : 'text-slate-500'} />
+                        <span>{link.name}</span>
+                      </Link>
+                    );
+                  })}
+                </div>
+              )}
+            </div>
           </nav>
         </div>
 
