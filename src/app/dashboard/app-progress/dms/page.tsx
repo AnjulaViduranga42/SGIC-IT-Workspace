@@ -31,7 +31,6 @@ function MonthFilter({ months, selected, onChange }: { months: string[]; selecte
 }
 
 export default function DmsPage() {
-  const dashboardRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
   const [data, setData] = useState<DmsData>({ users: [], indexByMonth: [], indexByUser: [] });
   const [loading, setLoading] = useState(true);
@@ -62,9 +61,10 @@ export default function DmsPage() {
   }, []);
   useEffect(() => { localStorage.setItem(STORAGE_KEY, JSON.stringify(selectedMonths)); }, [selectedMonths]);
   useEffect(() => {
-    const updateFullscreen = () => setIsFullscreen(document.fullscreenElement === dashboardRef.current);
+    const updateFullscreen = () => setIsFullscreen(document.fullscreenElement?.id === 'dashboard-content');
+    const timer = window.setTimeout(updateFullscreen, 0);
     document.addEventListener('fullscreenchange', updateFullscreen);
-    return () => document.removeEventListener('fullscreenchange', updateFullscreen);
+    return () => { window.clearTimeout(timer); document.removeEventListener('fullscreenchange', updateFullscreen); };
   }, []);
 
   const months = useMemo(() => data.indexByMonth.map((item) => item.month).sort((a, b) => monthOrder.indexOf(a) - monthOrder.indexOf(b)), [data.indexByMonth]);
@@ -108,13 +108,13 @@ export default function DmsPage() {
   const toggleFullscreen = async () => {
     try {
       if (document.fullscreenElement) await document.exitFullscreen();
-      else await dashboardRef.current?.requestFullscreen();
+      else await document.getElementById('dashboard-content')?.requestFullscreen();
     } catch {
       setMessage({ type: 'error', text: 'Fullscreen mode is not supported by this browser.' });
     }
   };
 
-  return <div ref={dashboardRef} className={`min-w-0 space-y-7 transition-[padding,background-color] duration-300 ease-out ${isFullscreen ? 'dashboard-presentation h-screen overflow-y-auto p-4 sm:p-6 lg:p-8' : ''}`}>
+  return <div className="min-w-0 space-y-7 transition-opacity duration-300 ease-out">
     <header className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
       <div><p className="text-xs font-semibold uppercase tracking-[0.2em] text-indigo-400">App Progress Dashboard</p><h1 className="mt-2 text-3xl font-bold text-white">DMS</h1><p className="mt-2 max-w-2xl text-sm text-slate-400">Monitor DMS users and monthly indexing activity from the two source reports.</p></div>
       <div className="flex flex-wrap gap-3"><AppDashboardSelector /><button type="button" onClick={toggleFullscreen} className="flex items-center gap-2 rounded-xl border border-white/10 bg-white/5 px-4 py-2.5 text-sm font-medium text-slate-200 transition-all duration-200 hover:bg-white/10 active:scale-[0.98]">{isFullscreen ? <Minimize2 size={17} /> : <Maximize2 size={17} />}{isFullscreen ? 'Exit Fullscreen' : 'Present'}</button><input ref={inputRef} hidden type="file" multiple accept=".xlsx" onChange={upload} /><button type="button" disabled={uploading} onClick={() => inputRef.current?.click()} className="dashboard-primary-button flex items-center justify-center gap-2 rounded-xl bg-indigo-600 px-4 py-2.5 text-sm font-semibold text-white transition-all duration-200 hover:bg-indigo-500 active:scale-[0.98] disabled:opacity-60">{uploading ? <Loader2 size={17} className="animate-spin" /> : <Upload size={17} />}{uploading ? 'Importing…' : 'Upload DMS Reports'}</button></div>

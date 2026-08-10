@@ -143,7 +143,6 @@ function MonthChartFilter({ months, selected, onChange }: MonthChartFilterProps)
 }
 
 export default function VirtualAssessorPage() {
-  const dashboardRef = useRef<HTMLDivElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [jobs, setJobs] = useState<VirtualAssessorJob[]>([]);
   const [loading, setLoading] = useState(true);
@@ -180,9 +179,10 @@ export default function VirtualAssessorPage() {
   }, [fetchJobs]);
 
   useEffect(() => {
-    const handleFullscreenChange = () => setIsFullscreen(document.fullscreenElement === dashboardRef.current);
+    const handleFullscreenChange = () => setIsFullscreen(document.fullscreenElement?.id === 'dashboard-content');
+    const timer = window.setTimeout(handleFullscreenChange, 0);
     document.addEventListener('fullscreenchange', handleFullscreenChange);
-    return () => document.removeEventListener('fullscreenchange', handleFullscreenChange);
+    return () => { window.clearTimeout(timer); document.removeEventListener('fullscreenchange', handleFullscreenChange); };
   }, []);
 
   useEffect(() => {
@@ -379,7 +379,7 @@ export default function VirtualAssessorPage() {
       if (document.fullscreenElement) {
         await document.exitFullscreen();
       } else {
-        await dashboardRef.current?.requestFullscreen();
+        await document.getElementById('dashboard-content')?.requestFullscreen();
       }
     } catch {
       setMessage({ type: 'error', text: 'Fullscreen mode is not supported by this browser.' });
@@ -394,7 +394,7 @@ export default function VirtualAssessorPage() {
   ];
 
   return (
-    <div ref={dashboardRef} className={`space-y-7 ${isFullscreen ? 'dashboard-presentation h-screen overflow-y-auto p-6 md:p-8' : ''}`}>
+    <div className="space-y-7 transition-opacity duration-300 ease-out">
       <header className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
         <div>
           <p className="text-xs font-semibold uppercase tracking-[0.2em] text-indigo-400">App Progress Dashboard</p>
