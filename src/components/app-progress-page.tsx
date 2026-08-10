@@ -19,7 +19,7 @@ export default function AppProgressPage({ title, description }: AppProgressPageP
       <header className="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
         <div>
           <p className="text-xs font-semibold uppercase tracking-[0.2em] text-indigo-400">
-            App Progress Dashboard
+            App Dashboard
           </p>
           <h1 className="mt-2 text-3xl font-bold text-white">{title}</h1>
           <p className="mt-2 max-w-2xl text-sm text-slate-400">{description}</p>

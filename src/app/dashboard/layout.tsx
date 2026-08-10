@@ -104,11 +104,11 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
 
       {/* Sidebar Navigation */}
       <aside className={`
-        fixed inset-y-0 left-0 h-dvh w-64 glass-panel-heavy rounded-none border-y-0 border-l-0 p-6 flex flex-col overflow-hidden z-50
+        fixed inset-y-0 left-0 h-dvh w-64 glass-panel-heavy rounded-none border-y-0 border-l-0 p-5 flex flex-col overflow-hidden z-50
         transition-transform duration-300 transform md:translate-x-0 md:static md:w-64 shrink-0
         ${mobileMenuOpen ? 'translate-x-0' : '-translate-x-full'}
       `}>
-        <div className="min-h-0 flex-1 space-y-8 overflow-y-auto overscroll-contain pr-1">
+        <div className="min-h-0 flex-1 space-y-5">
           {/* Logo */}
           <div className="hidden md:flex flex-col items-center">
             <Link href="/dashboard" className="flex justify-center hover:opacity-85 transition-opacity">
@@ -125,7 +125,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
 
           {/* Navigation Links */}
           <nav className="space-y-1">
-            {navLinks.map((link) => {
+            {navLinks.slice(0, 1).map((link) => {
               const Icon = link.icon;
               const isActive = pathname === link.href;
               return (
@@ -147,7 +147,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
               );
             })}
 
-            <div className="pt-3">
+            <div className="pt-1">
               <button
                 type="button"
                 onClick={() => setAppProgressOpen((open) => !open)}
@@ -162,7 +162,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
                 `}
               >
                 <PanelsTopLeft size={18} className={isAppProgressRoute ? 'text-indigo-400' : 'text-slate-400'} />
-                <span className="flex-1 text-left">App Progress Dashboard</span>
+                <span className="flex-1 text-left">App Dashboard</span>
                 <ChevronDown
                   size={16}
                   className={`transition-transform duration-200 ${appProgressOpen ? 'rotate-180' : ''}`}
@@ -196,6 +196,17 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
                 </div>
               )}
             </div>
+
+            {navLinks.slice(1).map((link) => {
+              const Icon = link.icon;
+              const isActive = pathname === link.href;
+              return (
+                <Link key={link.href} href={link.href} onClick={() => setMobileMenuOpen(false)} className={`flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-medium transition-all duration-200 cursor-pointer ${isActive ? 'sidebar-active-link bg-gradient-to-r from-indigo-500/20 to-purple-500/10 border border-indigo-500/30 text-white font-semibold shadow-[0_0_12px_rgba(99,102,241,0.15)]' : 'text-slate-400 hover:text-white hover:bg-white/5 border border-transparent'}`}>
+                  <Icon size={18} className={isActive ? 'text-indigo-400' : 'text-slate-400'} />
+                  <span>{link.name}</span>
+                </Link>
+              );
+            })}
           </nav>
         </div>
 

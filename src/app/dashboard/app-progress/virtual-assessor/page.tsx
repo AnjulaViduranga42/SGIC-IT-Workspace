@@ -397,7 +397,7 @@ export default function VirtualAssessorPage() {
     <div className="space-y-7 transition-opacity duration-300 ease-out">
       <header className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
         <div>
-          <p className="text-xs font-semibold uppercase tracking-[0.2em] text-indigo-400">App Progress Dashboard</p>
+          <p className="text-xs font-semibold uppercase tracking-[0.2em] text-indigo-400">App Dashboard</p>
           <h1 className="mt-2 text-3xl font-bold text-white">Virtual Assessor</h1>
           <p className="mt-2 max-w-2xl text-sm text-slate-400">
             Upload job reports and monitor monthly volume, completion, cancellation, and agent performance.

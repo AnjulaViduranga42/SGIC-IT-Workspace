@@ -135,3 +135,36 @@ model DmsIndexEntry {
   @@index([month])
   @@index([userId])
 }
+
+model SalvageStockEntry {
+  id          Int      @id @default(autoincrement())
+  entryDate   DateTime
+  itemCode    String
+  itemName    String
+  stockUom    String?
+  inQty       Int
+  outQty      Int
+  balanceQty  Int
+  warehouse   String
+  itemGroup   String?
+  voucherType String?
+  voucherNo   String?
+  sourceFile  String?
+  uploadedAt  DateTime @default(now())
+
+  @@index([entryDate])
+  @@index([warehouse])
+}
+
+model SalvageLoginUser {
+  id          Int       @id @default(autoincrement())
+  userName    String
+  email       String
+  lastLoginAt DateTime?
+  ipAddress   String?
+  sourceFile  String?
+  uploadedAt  DateTime  @default(now())
+
+  @@index([email])
+  @@index([lastLoginAt])
+}
