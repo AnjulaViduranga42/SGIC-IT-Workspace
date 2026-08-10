@@ -87,3 +87,26 @@ model Person {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 }
+
+model VirtualAssessorJob {
+  id             Int      @id @default(autoincrement())
+  sourceKey      String   @unique
+  referenceNo    String
+  description    String?
+  customerName   String?
+  customerMobile String?
+  product        String?
+  agentId        String
+  agentName      String?
+  latitude       Float?
+  longitude      Float?
+  status         String
+  jobDate        DateTime
+  cancelReason   String?
+  sourceFile     String?
+  uploadedAt     DateTime @default(now())
+
+  @@index([jobDate])
+  @@index([status])
+  @@index([agentId])
+}

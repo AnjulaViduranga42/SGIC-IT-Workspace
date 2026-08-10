@@ -12,6 +12,7 @@
   "dependencies": {
     "@prisma/client": "5.22.0",
     "bcrypt": "^6.0.0",
+    "cheerio": "^1.2.0",
     "exceljs": "^4.4.0",
     "jose": "^6.2.5",
     "jspdf": "^4.2.1",
