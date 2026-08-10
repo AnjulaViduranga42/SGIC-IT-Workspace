@@ -1,4 +1,5 @@
 import { CheckCircle2, CircleDashed, Clock3, TrendingUp } from 'lucide-react';
+import AppDashboardSelector from '@/components/app-dashboard-selector';
 
 interface AppProgressPageProps {
   title: string;
@@ -15,12 +16,15 @@ const summaryCards = [
 export default function AppProgressPage({ title, description }: AppProgressPageProps) {
   return (
     <div className="space-y-8">
-      <header>
-        <p className="text-xs font-semibold uppercase tracking-[0.2em] text-indigo-400">
-          App Progress Dashboard
-        </p>
-        <h1 className="mt-2 text-3xl font-bold text-white">{title}</h1>
-        <p className="mt-2 max-w-2xl text-sm text-slate-400">{description}</p>
+      <header className="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
+        <div>
+          <p className="text-xs font-semibold uppercase tracking-[0.2em] text-indigo-400">
+            App Progress Dashboard
+          </p>
+          <h1 className="mt-2 text-3xl font-bold text-white">{title}</h1>
+          <p className="mt-2 max-w-2xl text-sm text-slate-400">{description}</p>
+        </div>
+        <AppDashboardSelector />
       </header>
 
       <section className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">

@@ -11,6 +11,8 @@ import {
   Database,
   FileSpreadsheet,
   Loader2,
+  Maximize2,
+  Minimize2,
   Search,
   Trash2,
   Upload,
@@ -28,6 +30,7 @@ import {
   XAxis,
   YAxis,
 } from 'recharts';
+import AppDashboardSelector from '@/components/app-dashboard-selector';
 
 interface VirtualAssessorJob {
   id: number;
@@ -55,10 +58,10 @@ interface ImportResult {
 
 const PAGE_SIZE = 20;
 const chartTooltipStyle = {
-  backgroundColor: '#111827',
-  border: '1px solid rgba(255,255,255,0.12)',
+  backgroundColor: 'var(--chart-tooltip-bg)',
+  border: '1px solid var(--chart-tooltip-border)',
   borderRadius: '12px',
-  color: '#f8fafc',
+  color: 'var(--text-title)',
 };
 
 function monthKey(date: string) {
@@ -102,7 +105,7 @@ function MonthChartFilter({ months, selected, onChange }: MonthChartFilterProps)
         <CalendarDays size={15} className="text-indigo-400" />
         {activeMonths.length === months.length ? 'All months' : `${activeMonths.length} months`}
       </summary>
-      <div className="absolute right-0 z-30 mt-2 w-52 rounded-xl border border-white/10 bg-slate-950 p-3 shadow-2xl">
+      <div className="chart-filter-menu absolute right-0 z-30 mt-2 w-52 rounded-xl border border-white/10 p-3 shadow-2xl">
         <div className="mb-2 flex items-center justify-between">
           <span className="text-xs font-semibold text-white">Select months</span>
           <button type="button" onClick={() => onChange([])} className="text-[11px] text-indigo-400 hover:text-indigo-300">
@@ -128,6 +131,7 @@ function MonthChartFilter({ months, selected, onChange }: MonthChartFilterProps)
 }
 
 export default function VirtualAssessorPage() {
+  const dashboardRef = useRef<HTMLDivElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [jobs, setJobs] = useState<VirtualAssessorJob[]>([]);
   const [loading, setLoading] = useState(true);
@@ -138,10 +142,12 @@ export default function VirtualAssessorPage() {
   const [statusFilter, setStatusFilter] = useState('ALL');
   const [agentFilter, setAgentFilter] = useState('ALL');
   const [monthFilter, setMonthFilter] = useState('ALL');
+  const [tileMonths, setTileMonths] = useState<string[]>([]);
   const [monthlyChartMonths, setMonthlyChartMonths] = useState<string[]>([]);
   const [statusChartMonths, setStatusChartMonths] = useState<string[]>([]);
   const [agentChartMonths, setAgentChartMonths] = useState<string[]>([]);
   const [page, setPage] = useState(1);
+  const [isFullscreen, setIsFullscreen] = useState(false);
 
   const fetchJobs = useCallback(async () => {
     try {
@@ -159,6 +165,12 @@ export default function VirtualAssessorPage() {
   useEffect(() => {
     void fetchJobs();
   }, [fetchJobs]);
+
+  useEffect(() => {
+    const handleFullscreenChange = () => setIsFullscreen(document.fullscreenElement === dashboardRef.current);
+    document.addEventListener('fullscreenchange', handleFullscreenChange);
+    return () => document.removeEventListener('fullscreenchange', handleFullscreenChange);
+  }, []);
 
   const agents = useMemo(
     () => Array.from(new Set(jobs.map((job) => job.agentId))).sort((a, b) => a.localeCompare(b)),
@@ -195,9 +207,13 @@ export default function VirtualAssessorPage() {
     setPage(1);
   }, [search, statusFilter, agentFilter, monthFilter]);
 
-  const completedCount = jobs.filter((job) => isCompleted(job.status)).length;
-  const cancelledCount = jobs.filter((job) => isCancelled(job.status)).length;
-  const completionRate = jobs.length ? Math.round((completedCount / jobs.length) * 100) : 0;
+  const tileJobs = useMemo(() => {
+    const selected = new Set(tileMonths.length ? tileMonths : months);
+    return jobs.filter((job) => selected.has(monthKey(job.jobDate)));
+  }, [jobs, tileMonths, months]);
+  const completedCount = tileJobs.filter((job) => isCompleted(job.status)).length;
+  const cancelledCount = tileJobs.filter((job) => isCancelled(job.status)).length;
+  const completionRate = tileJobs.length ? Math.round((completedCount / tileJobs.length) * 100) : 0;
 
   const monthlyData = useMemo(() => {
     const grouped = new Map<string, { month: string; total: number; completed: number; cancelled: number }>();
@@ -303,15 +319,27 @@ export default function VirtualAssessorPage() {
     }
   };
 
+  const toggleFullscreen = async () => {
+    try {
+      if (document.fullscreenElement) {
+        await document.exitFullscreen();
+      } else {
+        await dashboardRef.current?.requestFullscreen();
+      }
+    } catch {
+      setMessage({ type: 'error', text: 'Fullscreen mode is not supported by this browser.' });
+    }
+  };
+
   const summaryCards = [
-    { label: 'Total Jobs', value: jobs.length, icon: Database, color: 'text-sky-400' },
+    { label: 'Total Jobs', value: tileJobs.length, icon: Database, color: 'text-sky-400' },
     { label: 'Completed Jobs', value: completedCount, icon: CheckCircle2, color: 'text-emerald-400' },
     { label: 'Cancelled Jobs', value: cancelledCount, icon: CircleX, color: 'text-orange-400' },
     { label: 'Completion Rate', value: `${completionRate}%`, icon: BarChart3, color: 'text-indigo-400' },
   ];
 
   return (
-    <div className="space-y-7">
+    <div ref={dashboardRef} className={`space-y-7 ${isFullscreen ? 'dashboard-presentation h-screen overflow-y-auto p-6 md:p-8' : ''}`}>
       <header className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
         <div>
           <p className="text-xs font-semibold uppercase tracking-[0.2em] text-indigo-400">App Progress Dashboard</p>
@@ -321,6 +349,15 @@ export default function VirtualAssessorPage() {
           </p>
         </div>
         <div className="flex flex-wrap gap-3">
+          <AppDashboardSelector />
+          <button
+            type="button"
+            onClick={toggleFullscreen}
+            className="flex items-center gap-2 rounded-xl border border-white/10 bg-white/5 px-4 py-2.5 text-sm font-medium text-slate-200 transition hover:bg-white/10"
+          >
+            {isFullscreen ? <Minimize2 size={17} /> : <Maximize2 size={17} />}
+            {isFullscreen ? 'Exit Fullscreen' : 'Present'}
+          </button>
           <input
             ref={fileInputRef}
             type="file"
@@ -355,7 +392,12 @@ export default function VirtualAssessorPage() {
         </div>
       ) : null}
 
-      <section className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
+      <section>
+        <div className="mb-3 flex items-center justify-between gap-3">
+          <p className="text-xs font-semibold uppercase tracking-[0.16em] text-slate-400">Summary</p>
+          <MonthChartFilter months={months} selected={tileMonths} onChange={setTileMonths} />
+        </div>
+        <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
         {summaryCards.map((card) => {
           const Icon = card.icon;
           return (
@@ -368,6 +410,7 @@ export default function VirtualAssessorPage() {
             </article>
           );
         })}
+        </div>
       </section>
 
       {loading ? (
@@ -386,10 +429,10 @@ export default function VirtualAssessorPage() {
               <div className="mt-5 h-80">
                 <ResponsiveContainer width="100%" height="100%">
                   <BarChart data={monthlyData} margin={{ top: 8, right: 8, left: -20, bottom: 5 }}>
-                    <CartesianGrid strokeDasharray="3 3" stroke="rgba(148,163,184,0.12)" />
-                    <XAxis dataKey="month" tick={{ fill: '#94a3b8', fontSize: 11 }} />
-                    <YAxis allowDecimals={false} tick={{ fill: '#94a3b8', fontSize: 11 }} />
-                    <Tooltip contentStyle={chartTooltipStyle} />
+                    <CartesianGrid strokeDasharray="3 3" stroke="var(--chart-grid)" />
+                    <XAxis dataKey="month" tick={{ fill: 'var(--chart-text)', fontSize: 11 }} />
+                    <YAxis allowDecimals={false} tick={{ fill: 'var(--chart-text)', fontSize: 11 }} />
+                    <Tooltip contentStyle={chartTooltipStyle} labelStyle={{ color: 'var(--text-title)' }} />
                     <Legend wrapperStyle={{ fontSize: 12 }} />
                     <Bar dataKey="total" name="Total" fill="#38bdf8" radius={[4, 4, 0, 0]} />
                     <Bar dataKey="completed" name="Completed" fill="#6366f1" radius={[4, 4, 0, 0]} />
@@ -413,7 +456,7 @@ export default function VirtualAssessorPage() {
                     <Pie data={pieData} dataKey="value" nameKey="name" innerRadius={62} outerRadius={96} paddingAngle={3}>
                       {pieData.map((item) => <Cell key={item.name} fill={item.color} />)}
                     </Pie>
-                    <Tooltip contentStyle={chartTooltipStyle} />
+                    <Tooltip contentStyle={chartTooltipStyle} labelStyle={{ color: 'var(--text-title)' }} />
                     <Legend wrapperStyle={{ fontSize: 12 }} />
                   </PieChart>
                 </ResponsiveContainer>
@@ -432,10 +475,10 @@ export default function VirtualAssessorPage() {
             <div className="mt-5 h-96">
               <ResponsiveContainer width="100%" height="100%">
                 <BarChart data={agentData} layout="vertical" margin={{ top: 5, right: 20, left: 35, bottom: 5 }}>
-                  <CartesianGrid strokeDasharray="3 3" stroke="rgba(148,163,184,0.12)" />
-                  <XAxis type="number" allowDecimals={false} tick={{ fill: '#94a3b8', fontSize: 11 }} />
-                  <YAxis type="category" dataKey="agent" width={90} tick={{ fill: '#cbd5e1', fontSize: 11 }} />
-                  <Tooltip contentStyle={chartTooltipStyle} />
+                  <CartesianGrid strokeDasharray="3 3" stroke="var(--chart-grid)" />
+                  <XAxis type="number" allowDecimals={false} tick={{ fill: 'var(--chart-text)', fontSize: 11 }} />
+                  <YAxis type="category" dataKey="agent" width={90} tick={{ fill: 'var(--chart-text)', fontSize: 11 }} />
+                  <Tooltip contentStyle={chartTooltipStyle} labelStyle={{ color: 'var(--text-title)' }} />
                   <Legend wrapperStyle={{ fontSize: 12 }} />
                   <Bar dataKey="completed" name="Completed" fill="#6366f1" radius={[0, 4, 4, 0]} />
                   <Bar dataKey="cancelled" name="Cancelled" fill="#f97316" radius={[0, 4, 4, 0]} />
