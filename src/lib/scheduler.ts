@@ -1,5 +1,6 @@
 import { db } from './db';
 import { sendEmail } from './email';
+import { sendTaskGroupNotification, taskEmails } from './task-email';
 
 export async function runScheduler() {
   console.log('[Scheduler] Running reminder check at', new Date().toISOString());
@@ -25,7 +26,7 @@ export async function runScheduler() {
         dueEmailSentAt: null,
         dueDate: { lte: now },
       },
-      include: { taskType: true },
+      include: { taskType: true, userGroup: true },
     });
 
     console.log(`[Scheduler] Found ${pendingTasks.length} pending tasks to evaluate.`);
@@ -104,6 +105,8 @@ export async function runScheduler() {
             }
           }
 
+          if (task.userGroup) await sendTaskGroupNotification({ emails: taskEmails(task.userGroup.emails), title: task.title, description: task.description, dueDate: task.dueDate, event: 'reminder' });
+
           // Mark task as notified
           await db.task.update({
             where: { id: task.id },
@@ -126,6 +129,7 @@ export async function runScheduler() {
       const subject = `Task due now: ${task.title}`;
       const html = `<div style="font-family:Arial,sans-serif;max-width:620px;margin:auto;padding:24px;color:#172033"><h2 style="color:#dc2626">Task due now</h2><h3>${task.title}</h3><p>${task.description || 'No description provided.'}</p><p><strong>Task type:</strong> ${task.taskType.name}</p><p><strong>Due:</strong> ${dueText}</p><p style="margin:28px 0"><a href="${completionUrl}" style="background:#dc2626;color:white;text-decoration:none;padding:12px 18px;border-radius:8px">View task and mark completed</a></p><p style="color:#64748b;font-size:12px">This is an automated due-time notification from SGIC IT Workspace.</p></div>`;
       const results = await Promise.allSettled(recipients.map((to) => sendEmail({ to, subject, html })));
+      if (task.userGroup) await sendTaskGroupNotification({ emails: taskEmails(task.userGroup.emails), title: task.title, description: task.description, dueDate: task.dueDate, event: 'due' });
       if (results.some((result) => result.status === 'fulfilled')) {
         await db.task.update({ where: { id: task.id }, data: { dueEmailSentAt: now } });
         dueSentCount += 1;
