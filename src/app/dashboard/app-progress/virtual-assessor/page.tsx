@@ -61,6 +61,7 @@ interface ImportResult {
 
 const PAGE_SIZE = 20;
 const MONTH_FILTER_STORAGE_KEY = 'sgic-virtual-assessor-month-filters';
+const NONE_SELECTED = '__NONE__';
 const chartTooltipStyle = {
   backgroundColor: 'var(--chart-tooltip-bg)',
   border: '1px solid var(--chart-tooltip-border)',
@@ -92,9 +93,15 @@ function savedMonthList(value: unknown) {
 }
 
 function validSavedMonths(selected: string[], available: string[]) {
+  if (selected.includes(NONE_SELECTED)) return [NONE_SELECTED];
   if (!selected.length) return selected;
   const next = selected.filter((month) => available.includes(month));
   return next.length === selected.length && next.every((month, index) => month === selected[index]) ? selected : next;
+}
+
+function activeSelection(selected: string[], available: string[]) {
+  if (selected.includes(NONE_SELECTED)) return [];
+  return selected.length ? selected.filter((value) => available.includes(value)) : available;
 }
 
 interface MonthChartFilterProps {
@@ -103,7 +110,7 @@ interface MonthChartFilterProps {
   onChange: (months: string[]) => void;
 }
 
-function MonthChartFilter({ months, selected, onChange }: MonthChartFilterProps) {
+function LegacyMonthChartFilter({ months, selected, onChange }: MonthChartFilterProps) {
   const activeMonths = selected.length ? selected : months;
 
   const toggleMonth = (month: string) => {
@@ -142,6 +149,26 @@ function MonthChartFilter({ months, selected, onChange }: MonthChartFilterProps)
       </div>
     </details>
   );
+}
+
+void LegacyMonthChartFilter;
+
+function MonthChartFilter({ months, selected, onChange }: MonthChartFilterProps) {
+  const activeMonths = selected.includes(NONE_SELECTED) ? [] : selected.length ? selected.filter((month) => months.includes(month)) : months;
+  const years = Array.from(new Set(months.map((month) => month.slice(0, 4))));
+  const activeYears = years.filter((year) => activeMonths.some((month) => month.startsWith(year)));
+  const toggleMonth = (month: string) => {
+    const next = activeMonths.includes(month) ? activeMonths.filter((item) => item !== month) : [...activeMonths, month];
+    onChange(next.length ? next : [NONE_SELECTED]);
+  };
+  const toggleYear = (year: string) => {
+    const yearMonths = months.filter((month) => month.startsWith(year));
+    const next = activeYears.includes(year) ? activeMonths.filter((month) => !month.startsWith(year)) : Array.from(new Set([...activeMonths, ...yearMonths]));
+    onChange(next.length ? next : [NONE_SELECTED]);
+  };
+  const selectAll = (checked: boolean) => onChange(checked ? [] : [NONE_SELECTED]);
+  const menu = (label: string, values: string[], active: string[], toggle: (value: string) => void, display: (value: string) => string) => <details data-filter-menu className="relative"><summary className="dashboard-control flex cursor-pointer list-none items-center gap-2 rounded-lg border border-white/10 px-3 py-2 text-xs font-medium"><CalendarDays size={15} className="text-indigo-400" />{active.length === values.length ? `All ${label}` : `${active.length} ${label}`}</summary><div className="chart-filter-menu absolute right-0 z-30 mt-2 w-52 rounded-xl border border-white/10 p-3 shadow-2xl"><div className="mb-2 text-xs font-semibold text-white">Select {label}</div><label className="mb-2 flex cursor-pointer items-center gap-2 border-b border-white/10 px-2 pb-2 text-xs font-medium text-slate-300"><input type="checkbox" checked={active.length === values.length && values.length > 0} onChange={(event) => selectAll(event.target.checked)} className="accent-indigo-500" />Select all</label><div className="max-h-56 space-y-1 overflow-y-auto">{values.map((value) => <label key={value} className="flex cursor-pointer items-center gap-2 rounded-lg px-2 py-1.5 text-xs text-slate-300 hover:bg-white/5"><input type="checkbox" checked={active.includes(value)} onChange={() => toggle(value)} className="accent-indigo-500" />{display(value)}</label>)}</div></div></details>;
+  return <div className="flex flex-wrap gap-2">{menu('years', years, activeYears, toggleYear, (value) => value)}{menu('months', months, activeMonths, toggleMonth, monthLabel)}</div>;
 }
 
 export default function VirtualAssessorPage() {
@@ -242,7 +269,7 @@ export default function VirtualAssessorPage() {
 
   const filteredJobs = useMemo(() => {
     const query = search.trim().toLowerCase();
-    const selectedTableMonths = new Set(tableMonths.length ? tableMonths : months);
+    const selectedTableMonths = new Set(activeSelection(tableMonths, months));
     return jobs.filter((job) => {
       const matchesSearch = !query || [
         job.referenceNo,
@@ -267,7 +294,7 @@ export default function VirtualAssessorPage() {
   }, [search, statusFilter, agentFilter, tableMonths]);
 
   const tileJobs = useMemo(() => {
-    const selected = new Set(tileMonths.length ? tileMonths : months);
+    const selected = new Set(activeSelection(tileMonths, months));
     return jobs.filter((job) => selected.has(monthKey(job.jobDate)));
   }, [jobs, tileMonths, months]);
   const completedCount = tileJobs.filter((job) => isCompleted(job.status)).length;
@@ -276,7 +303,7 @@ export default function VirtualAssessorPage() {
 
   const monthlyData = useMemo(() => {
     const grouped = new Map<string, { month: string; total: number; completed: number; cancelled: number }>();
-    const selected = new Set(monthlyChartMonths.length ? monthlyChartMonths : months);
+    const selected = new Set(activeSelection(monthlyChartMonths, months));
     jobs.filter((job) => selected.has(monthKey(job.jobDate))).forEach((job) => {
       const key = monthKey(job.jobDate);
       const item = grouped.get(key) ?? { month: key, total: 0, completed: 0, cancelled: 0 };
@@ -290,7 +317,7 @@ export default function VirtualAssessorPage() {
 
   const agentData = useMemo(() => {
     const grouped = new Map<string, { agentId: string; agent: string; completed: number; cancelled: number }>();
-    const selected = new Set(agentChartMonths.length ? agentChartMonths : months);
+    const selected = new Set(activeSelection(agentChartMonths, months));
     jobs.filter((job) => selected.has(monthKey(job.jobDate))).forEach((job) => {
       const label = job.agentName || job.agentId;
       const item = grouped.get(job.agentId) ?? { agentId: job.agentId, agent: label, completed: 0, cancelled: 0 };
@@ -304,7 +331,7 @@ export default function VirtualAssessorPage() {
   }, [jobs, agentChartMonths, months]);
 
   const statusChartJobs = useMemo(() => {
-    const selected = new Set(statusChartMonths.length ? statusChartMonths : months);
+    const selected = new Set(activeSelection(statusChartMonths, months));
     return jobs.filter((job) => selected.has(monthKey(job.jobDate)));
   }, [jobs, statusChartMonths, months]);
 
@@ -392,7 +419,7 @@ export default function VirtualAssessorPage() {
   const openJobs = (title: string, records: VirtualAssessorJob[]) => setDrilldown({ title, subtitle: `${records.length.toLocaleString()} underlying jobs`, columns: jobColumns, rows: jobRows(records) });
   const openMonthlyJobs = (month: string, kind: string) => openJobs(`${monthLabel(month)} · ${kind}`, jobs.filter((job) => monthKey(job.jobDate) === month && (kind === 'Completed' ? isCompleted(job.status) : kind === 'Cancelled' ? isCancelled(job.status) : true)));
   const openStatusJobs = (kind: string) => openJobs(`${kind} jobs`, statusChartJobs.filter((job) => kind === 'Completed' ? isCompleted(job.status) : isCancelled(job.status)));
-  const openAgentJobs = (agentId: string, kind: string) => { const selected = new Set(agentChartMonths.length ? agentChartMonths : months); openJobs(`${kind} jobs · ${agentId}`, jobs.filter((job) => job.agentId === agentId && selected.has(monthKey(job.jobDate)) && (kind === 'Completed' ? isCompleted(job.status) : isCancelled(job.status)))); };
+  const openAgentJobs = (agentId: string, kind: string) => { const selected = new Set(activeSelection(agentChartMonths, months)); openJobs(`${kind} jobs · ${agentId}`, jobs.filter((job) => job.agentId === agentId && selected.has(monthKey(job.jobDate)) && (kind === 'Completed' ? isCompleted(job.status) : isCancelled(job.status)))); };
 
   const summaryCards = [
     { label: 'Total Jobs', value: tileJobs.length, icon: Database, color: 'text-sky-400' },

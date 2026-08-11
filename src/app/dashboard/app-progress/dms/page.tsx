@@ -14,11 +14,12 @@ interface UserSummary { userId: string; _sum: { documentCount: number | null }; 
 interface IndexEntry { id: number; userId: string; documentCount: number; month: string; sourceFile: string | null; }
 interface DmsData { users: DmsUser[]; indexEntries: IndexEntry[]; indexByMonth: MonthSummary[]; indexByUser: UserSummary[]; }
 
-const STORAGE_KEY = 'sgic-dms-month-filter';
+const STORAGE_KEY = 'sgic-dms-month-filter-v2';
+const NONE_SELECTED = '__NONE__';
 const monthOrder = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'];
 const tooltipStyle = { backgroundColor: 'var(--chart-tooltip-bg)', border: '1px solid var(--chart-tooltip-border)', borderRadius: 12, color: 'var(--text-title)' };
 
-function MonthFilter({ months, selected, onChange }: { months: string[]; selected: string[]; onChange: (months: string[]) => void }) {
+function LegacyMonthFilter({ months, selected, onChange }: { months: string[]; selected: string[]; onChange: (months: string[]) => void }) {
   const active = selected.length ? selected : months;
   const toggle = (month: string) => {
     const next = active.includes(month) ? active.filter((item) => item !== month) : [...active, month];
@@ -31,6 +32,36 @@ function MonthFilter({ months, selected, onChange }: { months: string[]; selecte
       {months.map((month) => <label key={month} className="flex cursor-pointer items-center gap-2 rounded-lg px-2 py-1.5 text-xs hover:bg-white/5"><input type="checkbox" className="accent-indigo-500" checked={active.includes(month)} onChange={() => toggle(month)} />{month}</label>)}
     </div>
   </details>;
+}
+
+void LegacyMonthFilter;
+
+function entryYear(entry: IndexEntry) {
+  return entry.sourceFile?.match(/(?:19|20)\d{2}/)?.[0] || String(new Date().getFullYear());
+}
+
+function entryMonthKey(entry: IndexEntry) {
+  return `${entryYear(entry)}-${String(monthOrder.indexOf(entry.month) + 1).padStart(2, '0')}`;
+}
+
+function displayMonthKey(key: string) {
+  const [year, month] = key.split('-').map(Number);
+  return new Intl.DateTimeFormat('en', { month: 'short', year: 'numeric', timeZone: 'UTC' }).format(new Date(Date.UTC(year, month - 1, 1)));
+}
+
+function MonthFilter({ months, selected, onChange }: { months: string[]; selected: string[]; onChange: (months: string[]) => void }) {
+  const activeMonths = selected.includes(NONE_SELECTED) ? [] : selected.length ? selected.filter((month) => months.includes(month)) : months;
+  const years = Array.from(new Set(months.map((month) => month.slice(0, 4))));
+  const activeYears = years.filter((year) => activeMonths.some((month) => month.startsWith(year)));
+  const update = (next: string[]) => onChange(next.length ? next : [NONE_SELECTED]);
+  const toggleMonth = (month: string) => update(activeMonths.includes(month) ? activeMonths.filter((item) => item !== month) : [...activeMonths, month]);
+  const toggleYear = (year: string) => {
+    const yearMonths = months.filter((month) => month.startsWith(year));
+    update(activeYears.includes(year) ? activeMonths.filter((month) => !month.startsWith(year)) : Array.from(new Set([...activeMonths, ...yearMonths])));
+  };
+  const selectAll = (checked: boolean) => onChange(checked ? [] : [NONE_SELECTED]);
+  const menu = (label: string, values: string[], active: string[], toggle: (value: string) => void, display: (value: string) => string) => <details data-filter-menu className="relative"><summary className="dashboard-control flex cursor-pointer list-none items-center gap-2 rounded-xl px-3 py-2 text-sm font-medium"><CalendarDays size={16} />{active.length === values.length ? `All ${label}` : `${active.length} ${label}`}</summary><div className="chart-filter-menu absolute right-0 z-30 mt-2 w-52 rounded-xl border border-white/10 p-3 shadow-2xl"><div className="mb-2 text-xs font-semibold">Select {label}</div><label className="mb-2 flex cursor-pointer items-center gap-2 border-b border-white/10 px-2 pb-2 text-xs"><input type="checkbox" className="accent-indigo-500" checked={active.length === values.length && values.length > 0} onChange={(event) => selectAll(event.target.checked)} />Select all</label>{values.map((value) => <label key={value} className="flex cursor-pointer items-center gap-2 rounded-lg px-2 py-1.5 text-xs hover:bg-white/5"><input type="checkbox" className="accent-indigo-500" checked={active.includes(value)} onChange={() => toggle(value)} />{display(value)}</label>)}</div></details>;
+  return <div className="flex flex-wrap gap-2">{menu('years', years, activeYears, toggleYear, (value) => value)}{menu('months', months, activeMonths, toggleMonth, displayMonthKey)}</div>;
 }
 
 export default function DmsPage() {
@@ -72,17 +103,18 @@ export default function DmsPage() {
     return () => { window.clearTimeout(timer); document.removeEventListener('fullscreenchange', updateFullscreen); };
   }, []);
 
-  const months = useMemo(() => data.indexByMonth.map((item) => item.month).sort((a, b) => monthOrder.indexOf(a) - monthOrder.indexOf(b)), [data.indexByMonth]);
-  const activeMonths = selectedMonths.length ? selectedMonths.filter((month) => months.includes(month)) : months;
+  const months = useMemo(() => Array.from(new Set(data.indexEntries.map(entryMonthKey))).sort(), [data.indexEntries]);
+  const activeMonths = useMemo(() => selectedMonths.includes(NONE_SELECTED) ? [] : selectedMonths.length ? selectedMonths.filter((month) => months.includes(month)) : months, [selectedMonths, months]);
   const chartData = useMemo(() => activeMonths.map((month) => {
-    const item = data.indexByMonth.find((entry) => entry.month === month);
-    return { monthKey: month, month: month.slice(0, 3), documents: item?._sum.documentCount || 0 };
-  }), [activeMonths, data.indexByMonth]);
+    const documents = data.indexEntries.filter((entry) => entryMonthKey(entry) === month).reduce((sum, entry) => sum + entry.documentCount, 0);
+    return { monthKey: month, month: displayMonthKey(month), documents };
+  }), [activeMonths, data.indexEntries]);
   const totalDocuments = chartData.reduce((sum, item) => sum + item.documents, 0);
   const activeUsers = data.users.filter((user) => user.status === 'Active').length;
   const inactiveUsers = data.users.filter((user) => user.status === 'In Active').length;
   const pieData = [{ name: 'Active', value: activeUsers, color: '#22c55e' }, { name: 'In Active', value: inactiveUsers, color: '#60a5fa' }];
-  const topUsers = useMemo(() => [...data.indexByUser].sort((a, b) => (b._sum.documentCount || 0) - (a._sum.documentCount || 0)).slice(0, 8).map((item) => ({ name: item.userId, documents: item._sum.documentCount || 0 })), [data.indexByUser]);
+  const filteredIndexEntries = useMemo(() => data.indexEntries.filter((entry) => activeMonths.includes(entryMonthKey(entry))), [data.indexEntries, activeMonths]);
+  const topUsers = useMemo(() => Array.from(filteredIndexEntries.reduce((map, entry) => map.set(entry.userId, (map.get(entry.userId) || 0) + entry.documentCount), new Map<string, number>())).map(([name, documents]) => ({ name, documents })).sort((a, b) => b.documents - a.documents).slice(0, 8), [filteredIndexEntries]);
   const visibleUsers = useMemo(() => data.users.filter((user) => {
     const term = search.toLowerCase();
     return (status === 'ALL' || user.status === status) && [user.externalUserId, user.userName, user.email].some((value) => value?.toLowerCase().includes(term));
@@ -120,8 +152,8 @@ export default function DmsPage() {
   };
   const indexColumns: DrilldownColumn[] = [{ key: 'user', label: 'User ID' }, { key: 'month', label: 'Month' }, { key: 'documents', label: 'Documents' }, { key: 'source', label: 'Source' }];
   const indexRows = (entries: IndexEntry[]): DrilldownRow[] => entries.map((entry) => ({ user: entry.userId, month: entry.month, documents: entry.documentCount, source: entry.sourceFile }));
-  const openMonth = (month: string) => { const entries = data.indexEntries.filter((entry) => entry.month === month); setDrilldown({ title: `${month} indexing details`, subtitle: `${entries.reduce((sum, entry) => sum + entry.documentCount, 0).toLocaleString()} documents across ${entries.length.toLocaleString()} records`, columns: indexColumns, rows: indexRows(entries) }); };
-  const openIndexer = (userId: string) => { const entries = data.indexEntries.filter((entry) => entry.userId === userId); setDrilldown({ title: `Indexing user · ${userId}`, subtitle: `${entries.reduce((sum, entry) => sum + entry.documentCount, 0).toLocaleString()} documents across ${entries.length.toLocaleString()} records`, columns: indexColumns, rows: indexRows(entries) }); };
+  const openMonth = (month: string) => { const entries = data.indexEntries.filter((entry) => entryMonthKey(entry) === month); setDrilldown({ title: `${displayMonthKey(month)} indexing details`, subtitle: `${entries.reduce((sum, entry) => sum + entry.documentCount, 0).toLocaleString()} documents across ${entries.length.toLocaleString()} records`, columns: indexColumns, rows: indexRows(entries) }); };
+  const openIndexer = (userId: string) => { const entries = filteredIndexEntries.filter((entry) => entry.userId === userId); setDrilldown({ title: `Indexing user · ${userId}`, subtitle: `${entries.reduce((sum, entry) => sum + entry.documentCount, 0).toLocaleString()} documents across ${entries.length.toLocaleString()} records`, columns: indexColumns, rows: indexRows(entries) }); };
   const openStatus = (statusName: string) => { const matching = data.users.filter((user) => user.status === statusName); setDrilldown({ title: `${statusName} users`, subtitle: `${matching.length.toLocaleString()} DMS users`, columns: [{ key: 'id', label: 'User ID' }, { key: 'name', label: 'User Name' }, { key: 'email', label: 'Email' }, { key: 'status', label: 'Status' }], rows: matching.map((user) => ({ id: user.externalUserId, name: user.userName, email: user.email, status: user.status })) }); };
 
   return <div className="min-w-0 space-y-7 transition-opacity duration-300 ease-out">
