@@ -44,12 +44,15 @@ model Task {
   id                 Int        @id @default(autoincrement())
   title              String
   description        String
-  status             String     @default("PENDING") // PENDING, COMPLETED
+  status             String     @default("IN_PROGRESS") // IN_PROGRESS, HOLD, COMPLETED
   dueDate            DateTime
   taskTypeId         Int
-  taskType           TaskType   @relation(fields: [taskTypeId], references: [id], onDelete: Cascade)
+  taskType           TaskType   @relation(fields: [taskTypeId], references: [id], onDelete: Restrict)
   reminderDaysBefore Int        @default(1) // Number of days before due date to remind (e.g. 1, 2)
   reminderSentAt     DateTime?  // Timestamp when the reminder email was successfully sent
+  reminderAt         DateTime?
+  completionToken    String     @unique @default(uuid())
+  completedByEmail   String?
   assigneeEmails     String?    // Comma-separated list of individual email addresses to remind
   userGroupId        Int?
   userGroup          UserGroup? @relation(fields: [userGroupId], references: [id], onDelete: SetNull)

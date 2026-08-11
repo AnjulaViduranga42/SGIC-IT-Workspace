@@ -6,11 +6,12 @@ export async function runScheduler() {
   try {
     const now = new Date();
     
-    // Find all pending tasks that haven't sent a reminder yet
+    // Find all active tasks that have an explicit reminder date/time.
     const pendingTasks = await db.task.findMany({
       where: {
-        status: 'PENDING',
+        status: { in: ['IN_PROGRESS', 'HOLD'] },
         reminderSentAt: null,
+        reminderAt: { lte: now },
       },
       include: {
         taskType: true,
@@ -23,26 +24,14 @@ export async function runScheduler() {
     let sentCount = 0;
 
     for (const task of pendingTasks) {
-      // Calculate when the reminder should be sent
-      const dueDateMs = task.dueDate.getTime();
-      const reminderOffsetMs = task.reminderDaysBefore * 24 * 60 * 60 * 1000;
-      const reminderTime = new Date(dueDateMs - reminderOffsetMs);
+      const reminderTime = task.reminderAt;
 
       // Check if it's time to send the reminder
-      if (now >= reminderTime) {
+      if (reminderTime && now >= reminderTime) {
         console.log(`[Scheduler] Task "${task.title}" (ID: ${task.id}) is due for reminder. Due: ${task.dueDate}, Reminder Time: ${reminderTime}`);
         
         // Collect all emails
         const emailSet = new Set<string>();
-
-        // Add group emails
-        if (task.userGroup && task.userGroup.emails) {
-          task.userGroup.emails
-            .split(',')
-            .map(e => e.trim())
-            .filter(e => e.length > 0)
-            .forEach(e => emailSet.add(e));
-        }
 
         // Add individual assignee emails
         if (task.assigneeEmails) {
@@ -66,6 +55,8 @@ export async function runScheduler() {
             minute: '2-digit'
           });
 
+          const baseUrl = process.env.NEXT_PUBLIC_APP_URL || (process.env.VERCEL_PROJECT_PRODUCTION_URL ? `https://${process.env.VERCEL_PROJECT_PRODUCTION_URL}` : 'https://sgic-it-workspace.vercel.app');
+          const completionUrl = `${baseUrl}/tasks/complete/${task.completionToken}`;
           const html = `
             <div style="font-family: 'Segoe UI', Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px; border: 1px solid #e2e8f0; border-radius: 12px; background: linear-gradient(135deg, #0f172a 0%, #1e1b4b 100%); color: #ffffff; box-shadow: 0 4px 20px rgba(0,0,0,0.3);">
               <div style="text-align: center; border-bottom: 1px solid rgba(255,255,255,0.1); padding-bottom: 20px; margin-bottom: 20px;">
@@ -84,7 +75,7 @@ export async function runScheduler() {
                 </div>
                 
                 <p style="font-size: 14px; color: #94a3b8; line-height: 1.6; margin-top: 30px;">
-                  Please complete the task and update its status in the SGIC IT Workspace Dashboard.
+                  <a href="${completionUrl}" style="display:inline-block;background:#6366f1;color:#ffffff;text-decoration:none;padding:12px 18px;border-radius:8px;">View task and mark completed</a>
                 </p>
               </div>
               <div style="text-align: center; border-top: 1px solid rgba(255,255,255,0.1); padding-top: 20px; margin-top: 20px; font-size: 12px; color: #64748b;">

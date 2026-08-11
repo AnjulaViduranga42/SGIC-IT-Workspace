@@ -1,109 +1,22 @@
-import { NextResponse } from 'next/server';
 import { cookies } from 'next/headers';
-import { db } from '@/lib/db';
+import { NextResponse } from 'next/server';
 import { decrypt } from '@/lib/auth';
+import { db } from '@/lib/db';
+import { sendTaskAssignment, taskEmails } from '@/lib/task-email';
 
-async function getSessionUser() {
-  const cookieStore = await cookies();
-  const session = cookieStore.get('session')?.value;
-  if (!session) return null;
-  return await decrypt(session);
-}
-
-export async function PUT(
-  request: Request,
-  { params }: { params: Promise<{ id: string }> }
-) {
+const STATUSES = new Set(['COMPLETED', 'IN_PROGRESS', 'HOLD']);
+async function authorized() { const token = (await cookies()).get('session')?.value; return Boolean(token && await decrypt(token)); }
+export async function PUT(request: Request, { params }: { params: Promise<{ id: string }> }) {
   try {
-    const sessionUser = await getSessionUser();
-    if (!sessionUser || sessionUser.role !== 'ADMIN') {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 403 });
-    }
-
-    const { id } = await params;
-    const taskId = parseInt(id);
-
-    if (isNaN(taskId)) {
-      return NextResponse.json({ error: 'Invalid Task ID' }, { status: 400 });
-    }
-
-    const {
-      title,
-      description,
-      status,
-      dueDate,
-      taskTypeId,
-      reminderDaysBefore,
-      assigneeEmails,
-      userGroupId,
-    } = await request.json();
-
-    // Check if task exists
-    const task = await db.task.findUnique({ where: { id: taskId } });
-    if (!task) {
-      return NextResponse.json({ error: 'Task not found' }, { status: 404 });
-    }
-
-    // Determine if we need to reset the reminder alert
-    // Reset reminder if the due date changes, or if we change the status back to PENDING from COMPLETED
-    let resetReminder = false;
-    if (dueDate && new Date(dueDate).getTime() !== task.dueDate.getTime()) {
-      resetReminder = true;
-    }
-    if (status === 'PENDING' && task.status === 'COMPLETED') {
-      resetReminder = true;
-    }
-
-    const updatedTask = await db.task.update({
-      where: { id: taskId },
-      data: {
-        title: title !== undefined ? title.trim() : undefined,
-        description: description !== undefined ? description.trim() : undefined,
-        status: status !== undefined ? status : undefined,
-        dueDate: dueDate !== undefined ? new Date(dueDate) : undefined,
-        taskTypeId: taskTypeId !== undefined ? parseInt(taskTypeId) : undefined,
-        reminderDaysBefore: reminderDaysBefore !== undefined ? parseInt(reminderDaysBefore) : undefined,
-        assigneeEmails: assigneeEmails !== undefined ? assigneeEmails.trim() : undefined,
-        userGroupId: userGroupId !== undefined ? (userGroupId ? parseInt(userGroupId) : null) : undefined,
-        ...(resetReminder ? { reminderSentAt: null } : {}),
-      },
-      include: {
-        taskType: true,
-        userGroup: true,
-      },
-    });
-
-    return NextResponse.json(updatedTask);
-  } catch (error) {
-    console.error('Update task error:', error);
-    return NextResponse.json({ error: 'Internal Server Error' }, { status: 500 });
-  }
+    if (!(await authorized())) return NextResponse.json({ error: 'Unauthorized' }, { status: 403 }); const id = Number((await params).id); const body = await request.json();
+    const existing = await db.task.findUnique({ where: { id } }); if (!existing) return NextResponse.json({ error: 'Task not found.' }, { status: 404 });
+    if (body.status !== undefined && !STATUSES.has(body.status)) return NextResponse.json({ error: 'Invalid task status.' }, { status: 400 });
+    const emails = body.assigneeEmails !== undefined ? taskEmails(body.assigneeEmails) : taskEmails(existing.assigneeEmails);
+    if (body.assigneeEmails !== undefined && !emails.length) return NextResponse.json({ error: 'Select at least one assignee email.' }, { status: 400 });
+    const reminderChanged = body.reminderAt !== undefined && (body.reminderAt ? new Date(body.reminderAt).getTime() : null) !== existing.reminderAt?.getTime();
+    const task = await db.task.update({ where: { id }, data: { title: body.title !== undefined ? body.title.trim() : undefined, description: body.description !== undefined ? body.description.trim() : undefined, status: body.status, dueDate: body.dueDate ? new Date(body.dueDate) : undefined, reminderAt: body.reminderAt !== undefined ? (body.reminderAt ? new Date(body.reminderAt) : null) : undefined, taskTypeId: body.taskTypeId !== undefined ? Number(body.taskTypeId) : undefined, assigneeEmails: body.assigneeEmails !== undefined ? emails.join(', ') : undefined, userGroupId: null, completedByEmail: body.status !== undefined ? (body.status === 'COMPLETED' ? existing.completedByEmail : null) : undefined, ...(reminderChanged ? { reminderSentAt: null } : {}) }, include: { taskType: true } });
+    if (body.assigneeEmails !== undefined && emails.join(', ') !== taskEmails(existing.assigneeEmails).join(', ')) { const completionUrl = `${new URL(request.url).origin}/tasks/complete/${task.completionToken}`; await sendTaskAssignment({ emails, title: task.title, description: task.description, dueDate: task.dueDate, completionUrl }); }
+    return NextResponse.json(task);
+  } catch (error) { console.error('Update task error:', error); return NextResponse.json({ error: 'Unable to update task.' }, { status: 500 }); }
 }
-
-export async function DELETE(
-  request: Request,
-  { params }: { params: Promise<{ id: string }> }
-) {
-  try {
-    const sessionUser = await getSessionUser();
-    if (!sessionUser || sessionUser.role !== 'ADMIN') {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 403 });
-    }
-
-    const { id } = await params;
-    const taskId = parseInt(id);
-
-    if (isNaN(taskId)) {
-      return NextResponse.json({ error: 'Invalid Task ID' }, { status: 400 });
-    }
-
-    await db.task.delete({
-      where: { id: taskId },
-    });
-
-    return NextResponse.json({ success: true, message: 'Task deleted successfully' });
-  } catch (error) {
-    console.error('Delete task error:', error);
-    return NextResponse.json({ error: 'Internal Server Error' }, { status: 500 });
-  }
-}
+export async function DELETE(_: Request, { params }: { params: Promise<{ id: string }> }) { try { if (!(await authorized())) return NextResponse.json({ error: 'Unauthorized' }, { status: 403 }); await db.task.delete({ where: { id: Number((await params).id) } }); return NextResponse.json({ deleted: 1 }); } catch { return NextResponse.json({ error: 'Unable to delete task.' }, { status: 400 }); } }

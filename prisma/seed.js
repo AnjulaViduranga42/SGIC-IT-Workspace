@@ -44,22 +44,6 @@ async function main() {
   }
   console.log('Created/verified task types');
 
-  // Create default User Groups
-  const userGroups = [
-    { name: 'IT Infrastructure', emails: 'infra@sgic.lk,sysadmin@sgic.lk' },
-    { name: 'Software Development', emails: 'devs@sgic.lk,lead@sgic.lk' },
-    { name: 'QA Team', emails: 'qa@sgic.lk,tester@sgic.lk' },
-    { name: 'Help Desk Support', emails: 'support@sgic.lk,agent@sgic.lk' }
-  ];
-  for (const group of userGroups) {
-    await prisma.userGroup.upsert({
-      where: { name: group.name },
-      update: { emails: group.emails },
-      create: group
-    });
-  }
-  console.log('Created/verified user groups');
-
   // Create default Staff People
   const staffPeople = [
     { name: 'Anjula Dilhara', email: 'anjula@sgic.lk' },
