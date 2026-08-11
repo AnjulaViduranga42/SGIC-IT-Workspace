@@ -54,6 +54,30 @@ export async function POST(request: Request) {
   }
 }
 
+export async function PUT(request: Request) {
+  try {
+    const sessionUser = await getSessionUser();
+    if (!sessionUser || sessionUser.role !== 'ADMIN') return NextResponse.json({ error: 'Unauthorized' }, { status: 403 });
+    const { id, name, emails } = await request.json();
+    const groupId = Number(id);
+    const normalizedEmails = taskEmails(emails);
+    if (!Number.isInteger(groupId) || !name?.trim() || normalizedEmails.length === 0) {
+      return NextResponse.json({ error: 'Valid group, name, and emails are required' }, { status: 400 });
+    }
+    const group = await db.userGroup.update({
+      where: { id: groupId },
+      data: { name: name.trim(), emails: normalizedEmails.join(', ') },
+    });
+    return NextResponse.json(group);
+  } catch (error: unknown) {
+    console.error('Update user group error:', error);
+    if (typeof error === 'object' && error !== null && 'code' in error && error.code === 'P2002') {
+      return NextResponse.json({ error: 'Group name already exists' }, { status: 400 });
+    }
+    return NextResponse.json({ error: 'Unable to update email group' }, { status: 400 });
+  }
+}
+
 export async function DELETE(request: Request) {
   try {
     const sessionUser = await getSessionUser();
