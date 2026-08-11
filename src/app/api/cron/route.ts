@@ -1,13 +1,21 @@
 import { NextResponse } from 'next/server';
+import { cookies } from 'next/headers';
 import { runScheduler } from '@/lib/scheduler';
+import { decrypt } from '@/lib/auth';
+
+async function authorized(request: Request, allowSession: boolean) {
+  const secret = process.env.CRON_SECRET;
+  const urlKey = new URL(request.url).searchParams.get('key');
+  const bearer = request.headers.get('authorization');
+  if (secret && (urlKey === secret || bearer === `Bearer ${secret}`)) return true;
+  if (!allowSession) return !secret;
+  const token = (await cookies()).get('session')?.value;
+  return Boolean(token && await decrypt(token));
+}
 
 export async function GET(request: Request) {
   try {
-    const { searchParams } = new URL(request.url);
-    const key = searchParams.get('key');
-    const secret = process.env.CRON_SECRET;
-
-    if (secret && key !== secret) {
+    if (!(await authorized(request, false))) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
@@ -21,11 +29,7 @@ export async function GET(request: Request) {
 
 export async function POST(request: Request) {
   try {
-    const { searchParams } = new URL(request.url);
-    const key = searchParams.get('key');
-    const secret = process.env.CRON_SECRET;
-
-    if (secret && key !== secret) {
+    if (!(await authorized(request, true))) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 

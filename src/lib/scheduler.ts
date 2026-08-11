@@ -19,9 +19,19 @@ export async function runScheduler() {
       },
     });
 
+    const dueTasks = await db.task.findMany({
+      where: {
+        status: { in: ['IN_PROGRESS', 'HOLD'] },
+        dueEmailSentAt: null,
+        dueDate: { lte: now },
+      },
+      include: { taskType: true },
+    });
+
     console.log(`[Scheduler] Found ${pendingTasks.length} pending tasks to evaluate.`);
 
     let sentCount = 0;
+    let dueSentCount = 0;
 
     for (const task of pendingTasks) {
       const reminderTime = task.reminderAt;
@@ -107,8 +117,23 @@ export async function runScheduler() {
       }
     }
 
-    console.log(`[Scheduler] Reminder run finished. Sent reminders for ${sentCount} tasks.`);
-    return { success: true, processed: pendingTasks.length, sent: sentCount };
+    for (const task of dueTasks) {
+      const recipients = [...new Set((task.assigneeEmails || '').split(',').map((email) => email.trim()).filter(Boolean))];
+      if (!recipients.length) continue;
+      const baseUrl = process.env.NEXT_PUBLIC_APP_URL || (process.env.VERCEL_PROJECT_PRODUCTION_URL ? `https://${process.env.VERCEL_PROJECT_PRODUCTION_URL}` : 'https://sgic-it-workspace.vercel.app');
+      const completionUrl = `${baseUrl}/tasks/complete/${task.completionToken}`;
+      const dueText = task.dueDate.toLocaleString('en-LK', { timeZone: 'Asia/Colombo', dateStyle: 'full', timeStyle: 'short' });
+      const subject = `Task due now: ${task.title}`;
+      const html = `<div style="font-family:Arial,sans-serif;max-width:620px;margin:auto;padding:24px;color:#172033"><h2 style="color:#dc2626">Task due now</h2><h3>${task.title}</h3><p>${task.description || 'No description provided.'}</p><p><strong>Task type:</strong> ${task.taskType.name}</p><p><strong>Due:</strong> ${dueText}</p><p style="margin:28px 0"><a href="${completionUrl}" style="background:#dc2626;color:white;text-decoration:none;padding:12px 18px;border-radius:8px">View task and mark completed</a></p><p style="color:#64748b;font-size:12px">This is an automated due-time notification from SGIC IT Workspace.</p></div>`;
+      const results = await Promise.allSettled(recipients.map((to) => sendEmail({ to, subject, html })));
+      if (results.some((result) => result.status === 'fulfilled')) {
+        await db.task.update({ where: { id: task.id }, data: { dueEmailSentAt: now } });
+        dueSentCount += 1;
+      }
+    }
+
+    console.log(`[Scheduler] Run finished. Sent reminders for ${sentCount} tasks and due alerts for ${dueSentCount} tasks.`);
+    return { success: true, processed: pendingTasks.length + dueTasks.length, sent: sentCount, dueSent: dueSentCount };
   } catch (error) {
     console.error('[Scheduler] Error running task scheduler:', error);
     return { success: false, error: error };

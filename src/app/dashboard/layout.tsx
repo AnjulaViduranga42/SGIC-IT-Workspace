@@ -54,6 +54,13 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
       });
   }, [router]);
 
+  useEffect(() => {
+    const checkTaskEmails = () => fetch('/api/cron', { method: 'POST' }).catch(() => undefined);
+    const firstCheck = window.setTimeout(checkTaskEmails, 5000);
+    const interval = window.setInterval(checkTaskEmails, 60000);
+    return () => { window.clearTimeout(firstCheck); window.clearInterval(interval); };
+  }, []);
+
   const handleLogout = async () => {
     try {
       await fetch('/api/auth/logout', { method: 'POST' });
