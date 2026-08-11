@@ -1,0 +1,27 @@
+name: Task email scheduler
+
+on:
+  schedule:
+    - cron: "2-59/5 * * * *"
+  workflow_dispatch:
+
+concurrency:
+  group: task-email-scheduler
+  cancel-in-progress: false
+
+jobs:
+  check-task-emails:
+    runs-on: ubuntu-latest
+    timeout-minutes: 2
+    permissions:
+      id-token: write
+      contents: read
+    steps:
+      - name: Run reminder and due-email check
+        run: |
+          OIDC_TOKEN=$(curl --fail --silent --show-error \
+            --header "Authorization: bearer ${ACTIONS_ID_TOKEN_REQUEST_TOKEN}" \
+            "${ACTIONS_ID_TOKEN_REQUEST_URL}&audience=sgic-task-scheduler" | jq -r '.value')
+          curl --fail --silent --show-error --retry 2 \
+            --header "Authorization: Bearer ${OIDC_TOKEN}" \
+            https://sgic-it-workspace.vercel.app/api/cron
